@@ -3,12 +3,12 @@ version:             0.1.0.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/githubuser/hastext#readme
-license:             BSD3
+license:             Apache 2.0
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2017 Author name here
-category:            Web
+author:              Haruka Oikawa
+maintainer:          johndororo@gmail.com
+copyright:           2017 Haruka Oikawa
+category:            Machine learning
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
@@ -25,6 +25,7 @@ executable hastext-exe
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , hastext
+                     , optparse-applicative >= 0.13
   default-language:    Haskell2010
 
 test-suite hastext-test
@@ -38,4 +39,4 @@ test-suite hastext-test
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/hastext
+  location: https://github.com/Nnwww/hastext
