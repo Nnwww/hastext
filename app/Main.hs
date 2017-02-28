@@ -3,8 +3,6 @@ module Main where
 import Lib
 
 import Data.Semigroup ((<>))
-import Data.Char
-import Text.Read
 import Options.Applicative
 
 {-
@@ -37,19 +35,85 @@ data Options = Options
   { input     :: FilePath
   , output    :: FilePath
   , lRate     :: Double
-  , threads   :: Int
   , dim       :: Int
-  , minCount  :: Int
-  , epoch     :: Int
-  , loss      :: Loss
   , windows   :: Int
-  , tSub      :: Double
+  , epoch     :: Int
+  , minCount  :: Int
   , negatives :: Int
-  , verbose   :: Bool
-  } deriving Show
+  , loss      :: Loss
+  , tSub      :: Double
+  , threads   :: Int
+  , verbose   :: Int
+  } deriving (Show)
 
-data Loss = Negative | Hierarchical deriving Show
+data Loss = Negative | Hierarchical deriving (Show, Read)
 
+data DefalutOpt = DefaultOpt
+  { dLRate     :: Double
+  , dDim       :: Int
+  , dWindows   :: Int
+  , dEpoch     :: Int
+  , dMinCount  :: Int
+  , dNegatives :: Int
+  , dLoss      :: Loss
+  , dTSub      :: Double
+  }
+
+makeOptions :: DefalutOpt -- default parameters
+            -> Parser Options
+makeOptions (DefaultOpt { dLRate     = lr
+                        , dDim       = di
+                        , dWindows   = wi
+                        , dEpoch     = ep
+                        , dMinCount  = mc
+                        , dNegatives = ne
+                        , dLoss      = lo
+                        , dTSub      = ts
+                        }) =
+  Options <$> inputOpt
+          <*> outputOpt
+          <*> lRateOpt
+          <*> dimOpt
+          <*> windowsOpt
+          <*> epochOpt
+          <*> minCountOpt
+          <*> negativesOpt
+          <*> lossOpt
+          <*> tSubOpt
+          <*> threadsOpt
+          <*> verboseOpt
+  where
+    inputOpt = strOption
+      $  long "input"
+      <> short 'i'
+      <> metavar "INPUTPATH"
+      <> help "training file path"
+
+    outputOpt = strOption
+      $  long "output"
+      <> short 'o'
+      <> metavar "OUTPUTPATH"
+      <> help "output file path"
+
+    paramOpt :: (Show a, Read a) => String -> Char -> String -> a -> String -> Parser a
+    paramOpt longName shortName metaName defValue helpMsg = option auto
+      $  long longName
+      <> short shortName
+      <> showDefault
+      <> value defValue
+      <> metavar metaName
+      <> help helpMsg
+
+    lRateOpt     = paramOpt "lRate"    'r' "RATE"      lr "learning rate"
+    dimOpt       = paramOpt "dim"      'd' "DIM"       di "dimention of word vectors"
+    windowsOpt   = paramOpt "windows"  'w' "WIN"       wi "size of the context window"
+    epochOpt     = paramOpt "epoch"    'e' "EPOCH"     ep "number of epochs"
+    minCountOpt  = paramOpt "minCount" 'c' "MINCOUNT"  mc "minimal number of word occurences"
+    negativesOpt = paramOpt "neg"      'n' "NEGATIVES" ne "number of negatives sampled"
+    lossOpt      = paramOpt "loss"     'l' "LOSS"      lo "loss function {ns, hs}"
+    tSubOpt      = paramOpt "tsub"     't' "TSUB"      ts "sub sampling threshold"
+    threadsOpt   = paramOpt "th"       'm' "THREAD"    12 "number of threads"
+    verboseOpt   = paramOpt "verbose"  'v' "LEVEL"      1 "verbosity level"
 
 main :: IO ()
 main = someFunc

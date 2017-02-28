@@ -3,7 +3,7 @@ version:             0.1.0.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/githubuser/hastext#readme
-license:             Apache 2.0
+license:             MIT
 license-file:        LICENSE
 author:              Haruka Oikawa
 maintainer:          johndororo@gmail.com
