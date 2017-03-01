@@ -1,10 +1,12 @@
+{-# LANGUAGE StrictData #-}
 module Main where
 
 import Lib
 
 import Data.Semigroup ((<>))
+import Options.Applicative.Extra (execParser)
 import Options.Applicative
-
+import Options.Applicative.Builder (command)
 {-
 The following arguments are mandatory:
   -input              training file path
@@ -31,48 +33,47 @@ The following arguments are optional:
   -pretrainedVectors  pretrained word vectors for supervised learning []
 -}
 
-data Options = Options
-  { input     :: FilePath
-  , output    :: FilePath
-  , lRate     :: Double
-  , dim       :: Int
-  , windows   :: Int
-  , epoch     :: Int
-  , minCount  :: Int
-  , negatives :: Int
-  , loss      :: Loss
-  , tSub      :: Double
-  , threads   :: Int
-  , verbose   :: Int
-  } deriving (Show)
 
-data Loss = Negative | Hierarchical deriving (Show, Read)
-
-data DefalutOpt = DefaultOpt
-  { dLRate     :: Double
-  , dDim       :: Int
-  , dWindows   :: Int
-  , dEpoch     :: Int
-  , dMinCount  :: Int
-  , dNegatives :: Int
-  , dLoss      :: Loss
-  , dTSub      :: Double
+data DefaultOpt = DefaultOpt
+  { dlr             :: Double
+  , dlrUpdateTokens :: Int
+  , dDim            :: Int
+  , dWindows        :: Int
+  , dEpoch          :: Int
+  , dMinCount       :: Int
+  , dNegatives      :: Int
+  , dLoss           :: Loss
+  , dTSub           :: Double
   }
 
-makeOptions :: DefalutOpt -- default parameters
-            -> Parser Options
-makeOptions (DefaultOpt { dLRate     = lr
-                        , dDim       = di
-                        , dWindows   = wi
-                        , dEpoch     = ep
-                        , dMinCount  = mc
-                        , dNegatives = ne
-                        , dLoss      = lo
-                        , dTSub      = ts
+makeLearningDefault :: DefaultOpt
+makeLearningDefault = DefaultOpt
+  { dlr             = 0.05
+  , dlrUpdateTokens = 100
+  , dDim            = 100
+  , dWindows        = 5
+  , dEpoch          = 5
+  , dMinCount       = 5
+  , dNegatives      = 5
+  , dLoss           = Negative
+  , dTSub           = 0.0001
+  }
+
+makeOptions :: DefaultOpt -> Parser Options
+makeOptions (DefaultOpt { dlr             = ra
+                        , dlrUpdateTokens = ut
+                        , dDim            = di
+                        , dWindows        = wi
+                        , dEpoch          = ep
+                        , dMinCount       = mc
+                        , dNegatives      = ne
+                        , dLoss           = lo
+                        , dTSub           = ts
                         }) =
   Options <$> inputOpt
           <*> outputOpt
-          <*> lRateOpt
+          <*> lrOpt
+          <*> lrUpdateTokensOpt
           <*> dimOpt
           <*> windowsOpt
           <*> epochOpt
@@ -83,37 +84,57 @@ makeOptions (DefaultOpt { dLRate     = lr
           <*> threadsOpt
           <*> verboseOpt
   where
-    inputOpt = strOption
-      $  long "input"
-      <> short 'i'
-      <> metavar "INPUTPATH"
-      <> help "training file path"
-
-    outputOpt = strOption
-      $  long "output"
-      <> short 'o'
-      <> metavar "OUTPUTPATH"
-      <> help "output file path"
+    mandatoryPathOpt :: String -> Char -> String -> String -> Parser String
+    mandatoryPathOpt longName shortName metaName helpMsg = strOption
+      $! long longName
+      <> short shortName
+      <> metavar metaName
+      <> help helpMsg
 
     paramOpt :: (Show a, Read a) => String -> Char -> String -> a -> String -> Parser a
     paramOpt longName shortName metaName defValue helpMsg = option auto
-      $  long longName
+      $! long longName
       <> short shortName
       <> showDefault
       <> value defValue
       <> metavar metaName
       <> help helpMsg
 
-    lRateOpt     = paramOpt "lRate"    'r' "RATE"      lr "learning rate"
-    dimOpt       = paramOpt "dim"      'd' "DIM"       di "dimention of word vectors"
-    windowsOpt   = paramOpt "windows"  'w' "WIN"       wi "size of the context window"
-    epochOpt     = paramOpt "epoch"    'e' "EPOCH"     ep "number of epochs"
-    minCountOpt  = paramOpt "minCount" 'c' "MINCOUNT"  mc "minimal number of word occurences"
-    negativesOpt = paramOpt "neg"      'n' "NEGATIVES" ne "number of negatives sampled"
-    lossOpt      = paramOpt "loss"     'l' "LOSS"      lo "loss function {ns, hs}"
-    tSubOpt      = paramOpt "tsub"     't' "TSUB"      ts "sub sampling threshold"
-    threadsOpt   = paramOpt "th"       'm' "THREAD"    12 "number of threads"
-    verboseOpt   = paramOpt "verbose"  'v' "LEVEL"      1 "verbosity level"
+    inputOpt  = mandatoryPathOpt "input"  'i' "INPUTPATH"  "training file path"
+    outputOpt = mandatoryPathOpt "output" 'o' "OUTPUTPATH" "output file path"
+
+    lrOpt             = paramOpt "lr"             'r' "RATE"      ra "learning rate"
+    lrUpdateTokensOpt = paramOpt "lrUpdateTokens" 'u' "NTOKENS"   ut "number of tokens that update the learning rate"
+    dimOpt            = paramOpt "dim"            'd' "DIM"       di "dimention of word vectors"
+    windowsOpt        = paramOpt "windows"        'w' "WIN"       wi "size of the context window"
+    epochOpt          = paramOpt "epoch"          'e' "EPOCH"     ep "number of epochs"
+    minCountOpt       = paramOpt "minCount"       'c' "MINCOUNT"  mc "minimal number of word occurences"
+    negativesOpt      = paramOpt "neg"            'n' "NEGATIVES" ne "number of negatives sampled"
+    lossOpt           = paramOpt "loss"           'l' "LOSS"      lo "loss function {ns, hs}"
+    tSubOpt           = paramOpt "tsub"           't' "TSUB"      ts "sub sampling threshold"
+    threadsOpt        = paramOpt "th"             'm' "THREAD"    12 "number of threads"
+    verboseOpt        = paramOpt "verbose"        'v' "LEVEL"      1 "verbosity level"
+
+skipGram :: Mod CommandFields Command
+skipGram = command "skipgram" opts
+  where
+    opts = info (Skipgram <$> makeOptions skipGramDefault) (progDesc "learn representation using skipgram")
+    skipGramDefault = makeLearningDefault
+
+cbow :: Mod CommandFields Command
+cbow = command "cbow" opts
+  where
+    opts = info (Cbow <$> makeOptions cbowDefault) (progDesc "learn representation using cbow")
+    cbowDefault = makeLearningDefault
+
+parseCLI :: IO Command
+parseCLI = do
+  execParser optsWithDesc
+  where
+    optsWithDesc = info (helper <*> commands) (fullDesc <> header "A haskell implementation of fastText")
+    commands = subparser $! skipGram <> cbow
 
 main :: IO ()
-main = someFunc
+main = do
+  resultPath <- train =<< parseCLI
+  return ()
