@@ -32,7 +32,7 @@ The following arguments are optional:
   -verbose            verbosity level [2]
   -pretrainedVectors  pretrained word vectors for supervised learning []
 -}
-
+import Lib
 
 data DefaultOpt = DefaultOpt
   { dlr             :: Double
@@ -115,23 +115,25 @@ makeOptions (DefaultOpt { dlr             = ra
     threadsOpt        = paramOpt "th"             'm' "THREAD"    12 "number of threads"
     verboseOpt        = paramOpt "verbose"        'v' "LEVEL"      1 "verbosity level"
 
-skipGram :: Mod CommandFields Command
+skipGram :: Mod CommandFields Args
 skipGram = command "skipgram" opts
   where
-    opts = info (Skipgram <$> makeOptions skipGramDefault) (progDesc "learn representation using skipgram")
+    opts = info (helper <*> sgParser) (progDesc "learn representation using skipgram")
+    sgParser = Skipgram <$> makeOptions skipGramDefault
     skipGramDefault = makeLearningDefault
 
-cbow :: Mod CommandFields Command
+cbow :: Mod CommandFields Args
 cbow = command "cbow" opts
   where
-    opts = info (Cbow <$> makeOptions cbowDefault) (progDesc "learn representation using cbow")
+    opts = info (helper <*> cbowParser) (progDesc "learn representation using cbow")
+    cbowParser = Cbow <$> makeOptions cbowDefault
     cbowDefault = makeLearningDefault
 
-parseCLI :: IO Command
+parseCLI :: IO Args
 parseCLI = do
-  execParser optsWithDesc
+  execParser parser
   where
-    optsWithDesc = info (helper <*> commands) (fullDesc <> header "A haskell implementation of fastText")
+    parser = info (helper <*> commands) (fullDesc <> header "A haskell implementation of fastText")
     commands = subparser $! skipGram <> cbow
 
 main :: IO ()
