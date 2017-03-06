@@ -5,11 +5,14 @@ module Lib (Args
           , Options(..)
           , Loss(..)
           , train
+          , getOptions
           , saveArgs
+          , readArgs
           ) where
 
-import qualified Data.ByteString as BS
-import           Data.Store (Store, encode)
+import qualified Data.ByteString        as BS
+import qualified Data.Store             as ST
+import qualified Control.Exception.Safe as ES
 import           TH.Derive (Deriving, derive)
 
 -- | Arguments necessary to learn
@@ -43,23 +46,28 @@ data Loss = Negative | Hierarchical deriving (Show, Read)
 
 -- derive Store instances at compile time
 $($(derive [d|
-    instance Deriving (Store Method)
+    instance Deriving (ST.Store Method)
     |]))
 
 $($(derive [d|
-    instance Deriving (Store Options)
+    instance Deriving (ST.Store Options)
     |]))
 
 $($(derive [d|
-    instance Deriving (Store Loss)
+    instance Deriving (ST.Store Loss)
     |]))
 
 -- | Start training
 train :: Args -> IO (FilePath)
 train = undefined
 
+getOptions :: Args -> Options
+getOptions (_, opts) = opts
+
 -- | Save Args
-saveArgs :: Args -> IO ()
-saveArgs args@(_, opt) = BS.writeFile outFile $ encode args
-  where
-    outFile = output opt
+saveArgs :: FilePath -> Args -> IO ()
+saveArgs savePath args = BS.writeFile savePath $ ST.encode args
+
+-- | Read Args
+readArgs :: FilePath -> IO (Args)
+readArgs readPath = ST.decodeIO =<< BS.readFile readPath

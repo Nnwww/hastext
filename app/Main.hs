@@ -139,4 +139,8 @@ parseCLI = do
 
 main :: IO ()
 main = do
-  saveArgs =<< parseCLI
+  args <- parseCLI
+  let savePath = output $ getOptions args
+  saveArgs savePath args
+  reArgs <- readArgs savePath
+  return ()
