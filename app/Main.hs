@@ -1,4 +1,5 @@
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TupleSections #-}
 module Main where
 
 import Lib
@@ -119,14 +120,14 @@ skipGram :: Mod CommandFields Args
 skipGram = command "skipgram" opts
   where
     opts = info (helper <*> sgParser) (progDesc "learn representation using skipgram")
-    sgParser = Skipgram <$> makeOptions skipGramDefault
+    sgParser = (Skipgram, ) <$> makeOptions skipGramDefault
     skipGramDefault = makeLearningDefault
 
 cbow :: Mod CommandFields Args
 cbow = command "cbow" opts
   where
     opts = info (helper <*> cbowParser) (progDesc "learn representation using cbow")
-    cbowParser = Cbow <$> makeOptions cbowDefault
+    cbowParser = (Cbow, ) <$> makeOptions cbowDefault
     cbowDefault = makeLearningDefault
 
 parseCLI :: IO Args
@@ -138,5 +139,4 @@ parseCLI = do
 
 main :: IO ()
 main = do
-  resultPath <- train =<< parseCLI
-  return ()
+  saveArgs =<< parseCLI

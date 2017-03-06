@@ -1,17 +1,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Lib (Args(..)
+module Lib (Args
+          , Method(..)
           , Options(..)
           , Loss(..)
           , train
+          , saveArgs
           ) where
 
-import Data.Store
-import TH.Derive
+import qualified Data.ByteString as BS
+import           Data.Store (Store, encode)
+import           TH.Derive (Deriving, derive)
 
-data Args
-  = Cbow Options
-  | Skipgram Options
+type Args = (Method, Options)
+
+data Method
+  = Cbow
+  | Skipgram
   deriving Show
 
 data Options = Options
@@ -33,8 +38,9 @@ data Options = Options
 -- Loss functions
 data Loss = Negative | Hierarchical deriving (Show, Read)
 
+-- derive Store instances at compile time
 $($(derive [d|
-    instance Deriving (Store Args)
+    instance Deriving (Store Method)
     |]))
 
 $($(derive [d|
@@ -47,3 +53,8 @@ $($(derive [d|
 
 train :: Args -> IO (FilePath)
 train = undefined
+
+saveArgs :: Args -> IO ()
+saveArgs args@(_, opt) = BS.writeFile outFile $ encode args
+  where
+    outFile = output opt
