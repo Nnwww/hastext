@@ -29,16 +29,16 @@ data Options = Options
   { input          :: !FilePath -- ^ training file path
   , output         :: !FilePath -- ^ output file path
   , lr             :: !Double   -- ^ learning rate
-  , lrUpdateTokens :: !Int      -- ^ the number of tokens that update the learning rate
-  , dim            :: !Int      -- ^ size of word vectors
-  , windows        :: !Int      -- ^ size of the context window
-  , epoch          :: !Int      -- ^ number of epochs
-  , minCount       :: !Int      -- ^ minimal number of word occurences
-  , negatives      :: !Int      -- ^ number of negatives sampled
+  , lrUpdateTokens :: !Word     -- ^ the number of tokens that update the learning rate
+  , dim            :: !Word     -- ^ size of word vectors
+  , windows        :: !Word     -- ^ size of the context window
+  , epoch          :: !Word     -- ^ number of epochs
+  , minCount       :: !Word     -- ^ minimal number of word occurences
+  , negatives      :: !Word     -- ^ number of negatives sampled
   , loss           :: !Loss     -- ^ loss function {ns, hs}
   , tSub           :: !Double   -- ^ sub-sampling threshold
-  , threads        :: !Int      -- ^ number of threads
-  , verbose        :: !Int      -- ^ verbosity level
+  , threads        :: !Word     -- ^ number of threads
+  , verbose        :: !Word     -- ^ verbosity level
   } deriving (Show)
 
 -- | Loss functions

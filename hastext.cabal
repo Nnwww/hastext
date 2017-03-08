@@ -16,9 +16,11 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     WordEmbedding.FastText.Args
+                     , WordEmbedding.FastText.Dict
   build-depends:       base >= 4.7 && < 5
                      , bytestring >= 0.10
                      , safe-exceptions >= 0.1.4
+                     , vector >= 0.11
                      , store >= 0.3
                      , th-utilities >= 0.2
   default-language:    Haskell2010

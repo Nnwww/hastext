@@ -35,15 +35,15 @@ The following arguments are optional:
 -}
 
 data DefaultOpt = DefaultOpt
-  { dlr             :: Double
-  , dlrUpdateTokens :: Int
-  , dDim            :: Int
-  , dWindows        :: Int
-  , dEpoch          :: Int
-  , dMinCount       :: Int
-  , dNegatives      :: Int
-  , dLoss           :: Loss
-  , dTSub           :: Double
+  { dlr             :: !Double
+  , dlrUpdateTokens :: !Word
+  , dDim            :: !Word
+  , dWindows        :: !Word
+  , dEpoch          :: !Word
+  , dMinCount       :: !Word
+  , dNegatives      :: !Word
+  , dLoss           :: !Loss
+  , dTSub           :: !Double
   }
 
 makeLearningDefault :: DefaultOpt
