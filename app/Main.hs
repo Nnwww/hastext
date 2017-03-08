@@ -139,7 +139,7 @@ parseCLI = do
 main :: IO ()
 main = do
   args <- parseCLI
-  let savePath = output $ getOptions args
+  let savePath = output $ snd args
   saveArgs savePath args
   reArgs <- readArgs savePath
   return ()

@@ -1,14 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module WordEmbedding.FastText.Args (Args
-          , Method(..)
-          , Options(..)
-          , Loss(..)
-          , train
-          , getOptions
-          , saveArgs
-          , readArgs
-          ) where
+module WordEmbedding.FastText.Args
+  ( Args
+  , Method(..)
+  , Options(..)
+  , Loss(..)
+  , train
+  , saveArgs
+  , readArgs
+  ) where
 
 import qualified Data.ByteString        as BS
 import qualified Data.Store             as ST
@@ -60,9 +60,6 @@ $($(derive [d|
 -- | Start training
 train :: Args -> IO (FilePath)
 train = undefined
-
-getOptions :: Args -> Options
-getOptions (_, opts) = opts
 
 -- | Save Args
 saveArgs :: FilePath -> Args -> IO ()
