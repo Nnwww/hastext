@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     WordEmbedding.FastText.Args
   build-depends:       base >= 4.7 && < 5
                      , bytestring >= 0.10
                      , safe-exceptions >= 0.1.4

@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 module Main where
 
-import Lib
+import WordEmbedding.FastText.Args
 
 import Data.Semigroup ((<>))
 import Options.Applicative.Extra (execParser)
@@ -33,7 +33,6 @@ The following arguments are optional:
   -verbose            verbosity level [2]
   -pretrainedVectors  pretrained word vectors for supervised learning []
 -}
-import Lib
 
 data DefaultOpt = DefaultOpt
   { dlr             :: Double
