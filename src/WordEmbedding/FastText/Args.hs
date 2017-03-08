@@ -5,6 +5,7 @@ module WordEmbedding.FastText.Args
   , Method(..)
   , Options(..)
   , Loss(..)
+  , learningDefault
   , train
   , saveArgs
   , readArgs
@@ -43,6 +44,23 @@ data Options = Options
 
 -- | Loss functions
 data Loss = Negative | Hierarchical deriving (Show, Read)
+
+learningDefault :: Options
+learningDefault = Options
+  { input          = ""
+  , output         = ""
+  , lr             = 0.05
+  , lrUpdateTokens = 100
+  , dim            = 100
+  , windows        = 5
+  , epoch          = 5
+  , minCount       = 5
+  , negatives      = 5
+  , loss           = Negative
+  , tSub           = 0.0001
+  , threads        = 12
+  , verbose        = 1
+  }
 
 -- derive Store instances at compile time
 $($(derive [d|

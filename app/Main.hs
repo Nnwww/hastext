@@ -34,42 +34,19 @@ The following arguments are optional:
   -pretrainedVectors  pretrained word vectors for supervised learning []
 -}
 
-data DefaultOpt = DefaultOpt
-  { dlr             :: !Double
-  , dlrUpdateTokens :: !Word
-  , dDim            :: !Word
-  , dWindows        :: !Word
-  , dEpoch          :: !Word
-  , dMinCount       :: !Word
-  , dNegatives      :: !Word
-  , dLoss           :: !Loss
-  , dTSub           :: !Double
-  }
 
-makeLearningDefault :: DefaultOpt
-makeLearningDefault = DefaultOpt
-  { dlr             = 0.05
-  , dlrUpdateTokens = 100
-  , dDim            = 100
-  , dWindows        = 5
-  , dEpoch          = 5
-  , dMinCount       = 5
-  , dNegatives      = 5
-  , dLoss           = Negative
-  , dTSub           = 0.0001
-  }
-
-makeOptions :: DefaultOpt -> Parser Options
-makeOptions (DefaultOpt { dlr             = ra
-                        , dlrUpdateTokens = ut
-                        , dDim            = di
-                        , dWindows        = wi
-                        , dEpoch          = ep
-                        , dMinCount       = mc
-                        , dNegatives      = ne
-                        , dLoss           = lo
-                        , dTSub           = ts
-                        }) =
+makeOptions :: Options -- default parameters
+            -> Parser Options
+makeOptions (Options { lr             = ra
+                     , lrUpdateTokens = ut
+                     , dim            = di
+                     , windows        = wi
+                     , epoch          = ep
+                     , minCount       = mc
+                     , negatives      = ne
+                     , loss           = lo
+                     , tSub           = ts
+                     }) =
   Options <$> inputOpt
           <*> outputOpt
           <*> lrOpt
@@ -120,14 +97,14 @@ skipGram = command "skipgram" opts
   where
     opts = info (helper <*> sgParser) (progDesc "learn representation using skipgram")
     sgParser = (Skipgram, ) <$> makeOptions skipGramDefault
-    skipGramDefault = makeLearningDefault
+    skipGramDefault = learningDefault
 
 cbow :: Mod CommandFields Args
 cbow = command "cbow" opts
   where
     opts = info (helper <*> cbowParser) (progDesc "learn representation using cbow")
     cbowParser = (Cbow, ) <$> makeOptions cbowDefault
-    cbowDefault = makeLearningDefault
+    cbowDefault = learningDefault
 
 parseCLI :: IO Args
 parseCLI = do
