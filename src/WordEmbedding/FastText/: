@@ -1,7 +1,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module WordEmbedding.FastText.Dict where
 
@@ -27,15 +27,15 @@ import           Data.Conduit
 import qualified Data.Conduit.Combinators     as CC
 import           TH.Derive (Deriving, derive)
 
-type WordId    = Maybe Int
+type WordId    = Maybe Word32
 type Vec a     = V.Vector a
 type MVec s a  = VM.MVector s a
-type UVec a    = VU.Vector a
-type UMVec s a = VUM.MVector s a
+type UVec a    = VU.Vec a
+type UMVec s a = VUM.MVec s a
 type TrnsMV prim v a = prim (v (PrimState prim) a)
 
 data Entry = Entry
-  { eword    :: T.Text
+  { word     :: String
   , count    :: Word64
   , etype    :: EntryType
   , subwords :: Vec WordId
@@ -43,8 +43,8 @@ data Entry = Entry
 
 data EntryType = EWord | ELabel
 
-data Dict = Dict
-  { entries  :: Vec Entry
+data Dict s = Dict
+  { entries  :: MVec s Entry
   , size     :: Word32
   , nwords   :: Word32
   , nlabels  :: Word32
@@ -67,13 +67,22 @@ $($(derive [d|
     |]))
 
 $($(derive [d|
-    instance Deriving (S.Store Dict)
+    instance Deriving (S.Store (Dict s))
     |]))
 
-saveDict :: FilePath -> Dict -> IO ()
+singleton :: Args -> Dict
+singleton args' = Dict
+  { entries   = V.empty
+  , size      = 0
+  , nwords    = 0
+  , nlabels   = 0
+  , ntokens   = 0
+  }
+
+saveDict :: FilePath -> Dict s -> IO ()
 saveDict savePath dict = BS.writeFile savePath $ S.encode dict
 
-loadDict :: FilePath -> IO (Dict)
+loadDict :: FilePath -> IO (Dict s)
 loadDict readPath = S.decodeIO =<< BS.readFile readPath
 
 initDiscards :: Dict -> Double -> Vec Entry -> Vec Double
@@ -98,35 +107,11 @@ initFromFile args readPath = undefined
     --word2Id   = VM.replicate maxVocabSize Nothing :: TrnsSTV s WordId
     --pDiscards = VUM.replicate maxVocabSize 0      :: TrnsUSTV s Double
 
-hashMod :: T.Text -> Int -> Int
-hashMod str bound = H.hash str `mod` bound
+hash :: T.Text -> Word32 -> Word32
+hashMod  str = fromIntegral $ H.hash str
 
-findMV :: (PrimMonad m) => MVec (PrimState m) WordId -> MVec (PrimState m) Entry -> T.Text -> m Int
-findMV word2Id' entries' t = go $ hashMod t maxVocabSize
+  
+find :: MVec s WordId -> MVec s Entry -> T.Text -> Word32
+find w = go $ hash w
   where
-    go !h = matchWordId h =<< VM.unsafeRead word2Id' h
-    matchWordId h (Just i) = do
-      ent <- VM.unsafeRead entries' i
-      if t /= eword ent then go $ (h + 1) `mod` maxVocabSize else return h
-    matchWordId h _ = return h
-
-find :: Vec WordId -> Vec Entry -> T.Text -> Int
-find word2Id' entries' t = go $ hashMod t maxVocabSize
-  where
-    go !h = matchWordId h $ V.unsafeIndex word2Id' h
-    matchWordId h (Just i) |
-      t /= (eword $ V.unsafeIndex entries' i) = go $ (h + 1) `mod` maxVocabSize
-    matchWordId h _ = h
-
-addMV :: Args ->  Dict -> MVec s WordId -> MVec s Entry -> T.Text -> ST s (Dict)
-addMV args dic word2Id' entries' t = do
-  h <- findMV word2Id' entries' t
-  wid <- VM.unsafeRead word2Id' h
-  maybe (ifNew h) ifExist wid
-  return $ dic {ntokens = succ $ ntokens dic}
-  where
-    ifExist numId = VM.unsafeModify entries' updCount numId
-    updCount old@(Entry {count = c}) = old {count = succ c}
-    ifNew h' = do
-      undefined -- todo
-    newEntry = Entry {eword = t, count = 1, etype = EWord} -- todo: implement ngram and label functionality
+    go h = case 
