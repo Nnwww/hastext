@@ -10,9 +10,12 @@ import           WordEmbedding.FastText.Args
 import           Control.Monad.Primitive (PrimMonad, PrimState)
 import           Control.Monad.ST
 import           Control.Monad.Trans.Resource
+import           Control.Applicative
 
-import           Data.Char                    as C
+import qualified Data.Char                    as C
 import           Data.Word
+import qualified Data.List                    as L
+import qualified Data.Map.Strict              as M
 import           Data.Maybe
 import qualified Data.ByteString              as BS
 import qualified Data.Vector                  as V
@@ -27,7 +30,9 @@ import           Data.Conduit
 import qualified Data.Conduit.Combinators     as CC
 import           TH.Derive (Deriving, derive)
 
-type WordId    = Maybe Int
+
+type WordId    = Int
+type TMap a    = M.Map T.Text a
 type Vec a     = V.Vector a
 type MVec s a  = VM.MVector s a
 type UVec a    = VU.Vector a
@@ -38,7 +43,7 @@ data Entry = Entry
   { eword    :: T.Text
   , count    :: Word64
   , etype    :: EntryType
-  , subwords :: Vec WordId
+  , subwords :: ~(Vec WordId)
   }
 
 data EntryType = EWord | ELabel
@@ -73,7 +78,7 @@ $($(derive [d|
 saveDict :: FilePath -> Dict -> IO ()
 saveDict savePath dict = BS.writeFile savePath $ S.encode dict
 
-loadDict :: FilePath -> IO (Dict)
+loadDict :: FilePath -> IO Dict
 loadDict readPath = S.decodeIO =<< BS.readFile readPath
 
 initDiscards :: Dict -> Double -> Vec Entry -> Vec Double
@@ -101,32 +106,14 @@ initFromFile args readPath = undefined
 hashMod :: T.Text -> Int -> Int
 hashMod str bound = H.hash str `mod` bound
 
-findMV :: (PrimMonad m) => MVec (PrimState m) WordId -> MVec (PrimState m) Entry -> T.Text -> m Int
-findMV word2Id' entries' t = go $ hashMod t maxVocabSize
-  where
-    go !h = matchWordId h =<< VM.unsafeRead word2Id' h
-    matchWordId h (Just i) = do
-      ent <- VM.unsafeRead entries' i
-      if t /= eword ent then go $ (h + 1) `mod` maxVocabSize else return h
-    matchWordId h _ = return h
+threshold :: Word64 -> Word64 -> TMap Entry -> TMap Entry
+threshold = undefined
 
-find :: Vec WordId -> Vec Entry -> T.Text -> Int
-find word2Id' entries' t = go $ hashMod t maxVocabSize
+add :: Dict -> TMap Entry -> T.Text -> (Dict, TMap Entry)
+add dic entries' t = (dic {ntokens = succ $ ntokens dic}, updatedMap)
   where
-    go !h = matchWordId h $ V.unsafeIndex word2Id' h
-    matchWordId h (Just i) |
-      t /= (eword $ V.unsafeIndex entries' i) = go $ (h + 1) `mod` maxVocabSize
-    matchWordId h _ = h
-
-addMV :: Args ->  Dict -> MVec s WordId -> MVec s Entry -> T.Text -> ST s (Dict)
-addMV args dic word2Id' entries' t = do
-  h <- findMV word2Id' entries' t
-  wid <- VM.unsafeRead word2Id' h
-  maybe (ifNew h) ifExist wid
-  return $ dic {ntokens = succ $ ntokens dic}
-  where
-    ifExist numId = VM.unsafeModify entries' updCount numId
-    updCount old@(Entry {count = c}) = old {count = succ c}
-    ifNew h' = do
-      undefined -- todo
-    newEntry = Entry {eword = t, count = 1, etype = EWord} -- todo: implement ngram and label functionality
+    updatedMap = M.alter newEntry t entries'
+    newEntry (Just (old@Entry {count = c})) = Just $ old {count = succ c}
+    newEntry Nothing = Just $ Entry {eword = t, count = 1, etype = EWord, subwords = undefined}
+    -- todo: implement ngram and label functionality
+    -- nGrams n = (!! n) . L.transpose . L.map T.inits . T.tails
