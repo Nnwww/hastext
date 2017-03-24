@@ -41,19 +41,17 @@ type TrnsMV prim v a = prim (v (PrimState prim) a)
 
 data Entry = Entry
   { eword    :: T.Text
-  , count    :: Word64
+  , count    :: Word
   , etype    :: EntryType
-  , subwords :: ~(Vec WordId)
+  -- , subwords :: ~(Vec WordId)
   }
 
 data EntryType = EWord | ELabel
 
 data Dict = Dict
-  { entries  :: Vec Entry
-  , size     :: Word32
-  , nwords   :: Word32
-  , nlabels  :: Word32
-  , ntokens  :: Word64
+  { entries  :: TMap Entry
+  , discards :: TMap Double
+  , ntokens  :: Word
   }
 
 maxVocabSize = 30000000 :: Int
@@ -81,39 +79,42 @@ saveDict savePath dict = BS.writeFile savePath $ S.encode dict
 loadDict :: FilePath -> IO Dict
 loadDict readPath = S.decodeIO =<< BS.readFile readPath
 
-initDiscards :: Dict -> Double -> Vec Entry -> Vec Double
-initDiscards dict tsub entries = undefined
-
-initNGrams :: Word32 -> V.Vector Entry -> V.Vector WordId
-initNGrams size entries = undefined
-
-wordsFromFile :: (MonadResource m, PrimMonad p, VGM.MVector v a)
-              => (TrnsMV p v a -> T.Text -> TrnsMV p v a)
-              -> TrnsMV p v a
-              -> FilePath
-              -> ConduitM i T.Text m (TrnsMV p v a)
-wordsFromFile modifier init readPath = CC.sourceFile readPath
-  .| CC.decodeUtf8
-  .| CC.splitOnUnboundedE C.isSpace
-  .| CC.foldl modifier init
-
-initFromFile :: Args -> FilePath -> (Dict, MVec s WordId, MVec s Double)
-initFromFile args readPath = undefined
+initDiscards :: Double -> TMap Entry -> Word -> TMap Double
+initDiscards tsub ents tks = M.map calcDiscard ents
   where
-    --word2Id   = VM.replicate maxVocabSize Nothing :: TrnsSTV s WordId
-    --pDiscards = VUM.replicate maxVocabSize 0      :: TrnsUSTV s Double
+    calcDiscard e =
+      let f = realToFrac (count e) / realToFrac tks in
+        (sqrt $ tsub / f) + (tsub / f)
+
+
+initFromFile :: Args -> IO Dict
+initFromFile (_, Options {input = inp, tSub = tsub, minCount = minc}) = do
+  ents <- runConduitRes $ wordsFromFile addEnts M.empty inp
+  let (newEnts, newTks) = threshold minc ents
+      newDis = initDiscards tsub newEnts newTks in
+    return $ Dict newEnts newDis newTks
+  where
+    wordsFromFile modifier plain readPath =
+      CC.sourceFile readPath
+      .| CC.decodeUtf8
+      .| CC.splitOnUnboundedE C.isSpace
+      .| CC.foldl modifier plain
 
 hashMod :: T.Text -> Int -> Int
 hashMod str bound = H.hash str `mod` bound
 
-threshold :: Word64 -> Word64 -> TMap Entry -> TMap Entry
-threshold = undefined
-
-add :: Dict -> TMap Entry -> T.Text -> (Dict, TMap Entry)
-add dic entries' t = (dic {ntokens = succ $ ntokens dic}, updatedMap)
+threshold :: Word -> TMap Entry -> (TMap Entry, Word)
+threshold t ents = (newEnts, sizeTokens ents)
   where
-    updatedMap = M.alter newEntry t entries'
+    newEnts = M.filter (\e -> t > count e) ents -- Improvable?: if lazy IO, it can suppress explosion of memory usage here.
+
+sizeTokens :: TMap Entry -> Word
+sizeTokens ents = foldr (\e acc -> acc + count e) 0 ents
+
+addEnts :: TMap Entry -> T.Text -> TMap Entry
+addEnts ents t = M.alter newEntry t ents
+  where
     newEntry (Just (old@Entry {count = c})) = Just $ old {count = succ c}
-    newEntry Nothing = Just $ Entry {eword = t, count = 1, etype = EWord, subwords = undefined}
+    newEntry Nothing = Just $ Entry {eword = t, count = 1, etype = EWord}
     -- todo: implement ngram and label functionality
     -- nGrams n = (!! n) . L.transpose . L.map T.inits . T.tails
