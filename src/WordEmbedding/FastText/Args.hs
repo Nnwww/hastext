@@ -14,7 +14,6 @@ module WordEmbedding.FastText.Args
 
 import qualified Data.ByteString        as BS
 import qualified Data.Store             as ST
-import qualified Control.Exception.Safe as ES
 import           TH.Derive (Deriving, derive)
 
 -- | Arguments necessary to learn
@@ -28,19 +27,19 @@ data Method
 
 -- | Global options to learn
 data Options = Options
-  { input          :: !FilePath -- ^ training file path
-  , output         :: !FilePath -- ^ output file path
-  , lr             :: !Double   -- ^ learning rate
-  , lrUpdateTokens :: !Word     -- ^ the number of tokens that update the learning rate
-  , dim            :: !Word     -- ^ size of word vectors
-  , windows        :: !Word     -- ^ size of the context window
-  , epoch          :: !Word     -- ^ number of epochs
-  , minCount       :: !Word     -- ^ minimal number of word occurences
-  , negatives      :: !Word     -- ^ number of negatives sampled
-  , loss           :: !Loss     -- ^ loss function {ns, hs}
-  , tSub           :: !Double   -- ^ sub-sampling threshold
-  , threads        :: !Word     -- ^ number of threads
-  , verbose        :: !Word     -- ^ verbosity level
+  { input          :: FilePath -- ^ training file path
+  , output         :: FilePath -- ^ output file path
+  , lr             :: Double   -- ^ learning rate
+  , lrUpdateTokens :: Word     -- ^ the number of tokens that update the learning rate
+  , dim            :: Word     -- ^ size of word vectors
+  , windows        :: Word     -- ^ size of the context window
+  , epoch          :: Word     -- ^ number of epochs
+  , minCount       :: Word     -- ^ minimal number of word occurences
+  , negatives      :: Word     -- ^ number of negatives sampled
+  , loss           :: Loss     -- ^ loss function {ns, hs}
+  , tSub           :: Double   -- ^ sub-sampling threshold
+  , threads        :: Word     -- ^ number of threads
+  , verbose        :: Word     -- ^ verbosity level
   } deriving (Show)
 
 -- | Loss functions
