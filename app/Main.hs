@@ -8,6 +8,7 @@ import Data.Semigroup ((<>))
 import Options.Applicative.Extra (execParser)
 import Options.Applicative
 import Options.Applicative.Builder (command)
+
 {-
 The following arguments are mandatory:
   -input              training file path

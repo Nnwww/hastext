@@ -17,7 +17,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     WordEmbedding.FastText.Args
                      , WordEmbedding.FastText.Dict
+                     , WordEmbedding.FastText.Model
   build-depends:       base >= 4.7 && < 5
+                     , array >= 0.5
                      , primitive >= 0.6.1
                      , bytestring >= 0.10
                      , text >= 1.2

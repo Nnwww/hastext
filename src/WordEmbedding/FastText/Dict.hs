@@ -12,19 +12,17 @@ import qualified System.Random.MWC            as RM
 
 import qualified Data.Char                    as C
 import qualified Data.Map.Strict              as MS
-import           Data.Map.Strict              ((!))
 import qualified Data.ByteString              as BS
 import qualified Data.Vector                  as V
 import qualified Data.Text                    as T
-import qualified Data.Hashable                as H
 import           Data.Conduit
 import qualified Data.Conduit.Combinators     as CC
 
 import qualified Data.Store                   as S
 import           TH.Derive (Deriving, derive)
 
-type TMap a    = MS.Map T.Text a
-type Vec a     = V.Vector a
+type TMap a = MS.Map T.Text a
+type Vec  a = V.Vector a
 
 data Entry = Entry
   { eword    :: T.Text
@@ -48,6 +46,7 @@ eos = "</s>" :: T.Text
 bow =    "<" :: T.Text
 eow =    ">" :: T.Text
 
+-- deriving a binary serialization at compile-time.
 $($(derive [d|
     instance Deriving (S.Store Entry)
     |]))
@@ -86,7 +85,7 @@ wordsFromFile modifier plain readPath =
 discard :: TMap Double -> RM.GenIO -> T.Text -> IO Bool
 discard diss rand word = do
   randProb <- RM.uniform rand
-  let disProb = diss ! word in
+  let disProb = diss MS.! word in
     return $ randProb > disProb
 
 getLine :: Handle -> Dict -> RM.GenIO -> IO (Vec Entry)
@@ -96,7 +95,7 @@ getLine h (Dict{entries = ents, discards = diss}) rand =
   .| CC.takeWhileE (/= '\n')
   .| CC.splitOnUnboundedE C.isSpace
   .| CC.filterM (discard diss rand)
-  .| CC.map (\w -> ents ! w) -- The (!) symbol can not apply partially. It probably conflicts BangPattern etc.
+  .| CC.map (\w -> ents MS.! w)
   .| CC.sinkVector
 
 initFromFile :: Args -> IO Dict
@@ -106,9 +105,6 @@ initFromFile (_, Options{input = inp, tSub = tsub, minCount = minc}) = do
       newTkns = sizeTokens newEnts
       newDiss = initDiscards tsub newEnts newTkns in
     return $ Dict newEnts newDiss newTkns
-
-hashMod :: T.Text -> Int -> Int
-hashMod str bound = H.hash str `mod` bound
 
 threshold :: TMap Entry -> Word -> TMap Entry
 threshold ents t = MS.filter (\e -> t > count e) ents
