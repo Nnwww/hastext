@@ -7,7 +7,6 @@ module WordEmbedding.FastText.Args
   , Options(..)
   , Loss(..)
   , learningDefault
-  , train
   , saveArgs
   , readArgs
   ) where
@@ -74,10 +73,6 @@ $($(derive [d|
 $($(derive [d|
     instance Deriving (ST.Store Loss)
     |]))
-
--- | Start training
-train :: Args -> IO (FilePath)
-train = undefined
 
 -- | Save Args
 saveArgs :: FilePath -> Args -> IO ()

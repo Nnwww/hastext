@@ -83,8 +83,8 @@ wordsFromFile modifier plain readPath =
   .| CC.foldl modifier plain
 
 discard :: TMap Double -> RM.GenIO -> T.Text -> IO Bool
-discard diss rand word = do
-  randProb <- RM.uniform rand
+discard diss gen word = do
+  randProb <- RM.uniform gen
   let disProb = diss MS.! word in
     return $ randProb > disProb
 

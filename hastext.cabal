@@ -35,6 +35,7 @@ library
                      , mwc-random >= 0.13
                      , resourcet >= 1.1
                      , transformers >= 0.5
+                     , hmatrix >= 0.1
   default-language:    Haskell2010
 
 executable hastext-exe
