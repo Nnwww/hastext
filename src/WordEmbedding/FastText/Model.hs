@@ -1,7 +1,13 @@
+{-# LANGUAGE ViewPatterns #-}
 module WordEmbedding.FastText.Model where
 
-import           WordEmbedding.FastText.Args
+import qualified WordEmbedding.FastText.Args as FA
+import qualified WordEmbedding.FastText.Dict as FD
+
+import qualified Data.Text                   as T
+import qualified Data.Map.Strict             as MS
 import qualified Data.Array.Unboxed          as AU
+
 import qualified Numeric.LinearAlgebra       as LA
 import qualified Numeric.LinearAlgebra.Devel as LAD
 import qualified System.Random.MWC           as RM
@@ -12,7 +18,7 @@ import Control.Monad.ST
 data Model s = Model
   { wi     :: LAD.STMatrix s Double
   , wo     :: LAD.STMatrix s Double
-  , args   :: Args
+  , dict   :: FD.Dict
   , loss   :: Double
   , hidden :: LA.Vector Double
   , sig    :: Double -> Double
@@ -22,12 +28,32 @@ data Model s = Model
   , negpos :: Word
   }
 
+genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
+genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
+  case los of
+    FA.Negative     -> genNegatives ents lr input
+    FA.Hierarchical -> genHierarchical ents lr input
+
+genNegatives :: FD.TMap FD.Entry -- ^ vocabulary set for constructing a negative sampling table
+             -> (Double       -- ^ learning rate
+             ->  T.Text       -- ^ a input word
+             ->  Double)      -- ^ loss parameter
+genNegatives ents lr input = undefined
+
+
+genHierarchical :: FD.TMap FD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
+                -> (Double       -- ^ learning rate
+                ->  T.Text       -- ^ a input word
+                ->  Double)      -- ^ loss parameter
+genHierarchical ents lr input = undefined
+
 -- | generate memorized sigmoid function.
 genSigmoid :: Word -> Double -> (Double -> Double)
-genSigmoid tableSize maxValue x =
-  if x < -maxValue     then 0.0
-  else if maxValue < x then 1.0
-  else sigmoidTable AU.! (mapInputToIndex x)
+genSigmoid tableSize maxValue x
+  | x < -maxValue = 0.0
+  | maxValue < x  = 1.0
+  | otherwise     = sigmoidTable AU.! (mapInputToIndex x)
+  -- TODO: using closures will be less efficieny than inlined functions. Therefore there's room for consideration.
   where
     doubledTableSize = fromIntegral tableSize :: Double
 
@@ -44,9 +70,9 @@ genSigmoid tableSize maxValue x =
 
 -- | generate memorized log function.
 genLog :: Word -> (Double -> Double)
-genLog tableSize x =
-  if 1.0 < x then 0.0
-  else logTable AU.! (mapInputToIndex x)
+genLog tableSize x
+  | 1.0 < x   = 0.0
+  | otherwise = logTable AU.! (mapInputToIndex x)
   where
     doubledTableSize = fromIntegral tableSize :: Double
 

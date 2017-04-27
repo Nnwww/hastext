@@ -74,7 +74,7 @@ initDiscards tsub ents tks = MS.map calcDiscard ents
 
 -- |
 -- The function folding words splited by @Data.Char.isSpace@ from a file.
--- Note that The file as source is utf8 only.
+-- Note that files as source is utf8 only.
 wordsFromFile :: (r -> T.Text -> r) -> r -> FilePath -> IO r
 wordsFromFile modifier plain readPath =
   runConduitRes $ CC.sourceFile readPath
