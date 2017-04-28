@@ -1,11 +1,10 @@
-{-# LANGUAGE ViewPatterns #-}
 module WordEmbedding.FastText.Model where
 
 import qualified WordEmbedding.FastText.Args as FA
 import qualified WordEmbedding.FastText.Dict as FD
 
 import qualified Data.Text                   as T
-import qualified Data.Map.Strict             as MS
+import qualified Data.HashMap.Strict         as HS
 import qualified Data.Array.Unboxed          as AU
 
 import qualified Numeric.LinearAlgebra       as LA
@@ -16,16 +15,18 @@ import Control.Monad
 import Control.Monad.ST
 
 data Model s = Model
-  { wi     :: LAD.STMatrix s Double
-  , wo     :: LAD.STMatrix s Double
-  , dict   :: FD.Dict
-  , loss   :: Double
-  , hidden :: LA.Vector Double
-  , sig    :: Double -> Double
-  , log    :: Double -> Double
-  , rand   :: RM.GenST s
-  , negs   :: LA.Vector Double
-  , negpos :: Word
+  { weightI   :: LAD.STMatrix s Double
+  , weightO   :: LAD.STMatrix s Double
+  , dict      :: FD.Dict
+  , loss      :: Double
+  , hiddenL   :: LA.Vector Double
+  , outputL   :: LA.Vector Double
+  , grad      :: LA.Vector Double
+  , sigf      :: Double -> Double
+  , logf      :: Double -> Double
+  , gRand     :: RM.GenST s
+  , negatives :: LA.Vector Double
+  , negpos    :: Word
   }
 
 genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)

@@ -11,7 +11,7 @@ import           System.IO                    as SI
 import qualified System.Random.MWC            as RM
 
 import qualified Data.Char                    as C
-import qualified Data.Map.Strict              as MS
+import qualified Data.HashMap.Strict          as HS
 import qualified Data.ByteString              as BS
 import qualified Data.Vector                  as V
 import qualified Data.Text                    as T
@@ -21,7 +21,7 @@ import qualified Data.Conduit.Combinators     as CC
 import qualified Data.Store                   as S
 import           TH.Derive (Deriving, derive)
 
-type TMap a = MS.Map T.Text a
+type TMap a = HS.HashMap T.Text a
 type Vec  a = V.Vector a
 
 data Entry = Entry
@@ -66,7 +66,7 @@ loadDict :: FilePath -> IO Dict
 loadDict readPath = S.decodeIO =<< BS.readFile readPath
 
 initDiscards :: Double -> TMap Entry -> Word -> TMap Double
-initDiscards tsub ents tks = MS.map calcDiscard ents
+initDiscards tsub ents tks = HS.map calcDiscard ents
   where
     calcDiscard e =
       let f = realToFrac (count e) / realToFrac tks in
@@ -82,11 +82,16 @@ wordsFromFile modifier plain readPath =
   .| CC.splitOnUnboundedE C.isSpace
   .| CC.foldl modifier plain
 
+-- |
+-- The function that discard a word according to noise distribution. (As for noise distribution, you can see details in papers written by Mikolov et al.)
+-- Because words that don't exist in hash map are also discarded, I recommend applying threshold function to hash map at the 1st argment in advance.
 discard :: TMap Double -> RM.GenIO -> T.Text -> IO Bool
-discard diss gen word = do
-  randProb <- RM.uniform gen
-  let disProb = diss MS.! word in
-    return $ randProb > disProb
+discard diss gen word =
+  case HS.lookup word diss of
+    Nothing -> return False
+    Just disProb -> do
+      randProb <- RM.uniform gen
+      return $ randProb > disProb
 
 getLine :: Handle -> Dict -> RM.GenIO -> IO (Vec Entry)
 getLine h (Dict{entries = ents, discards = diss}) rand =
@@ -95,26 +100,26 @@ getLine h (Dict{entries = ents, discards = diss}) rand =
   .| CC.takeWhileE (/= '\n')
   .| CC.splitOnUnboundedE C.isSpace
   .| CC.filterM (discard diss rand)
-  .| CC.map (\w -> ents MS.! w)
+  .| CC.map (\w -> ents HS.! w)
   .| CC.sinkVector
 
 initFromFile :: Args -> IO Dict
 initFromFile (_, Options{input = inp, tSub = tsub, minCount = minc}) = do
-  ents <- wordsFromFile addEnts MS.empty inp
+  ents <- wordsFromFile addEnts HS.empty inp
   let newEnts = threshold ents minc
       newTkns = sizeTokens newEnts
       newDiss = initDiscards tsub newEnts newTkns in
     return $ Dict newEnts newDiss newTkns
 
 threshold :: TMap Entry -> Word -> TMap Entry
-threshold ents t = MS.filter (\e -> t > count e) ents
+threshold ents t = HS.filter (\e -> t > count e) ents
     -- Improvable?: if I use lazy IO, it can suppress explosion of memory usage here.
 
 sizeTokens :: TMap Entry -> Word
 sizeTokens ents = foldr (\e acc -> acc + count e) 0 ents
 
 addEnts :: TMap Entry -> T.Text -> TMap Entry
-addEnts ents t = MS.alter newEntry t ents
+addEnts ents t = HS.alter newEntry t ents
   where
     newEntry (Just old@Entry{count = c}) = Just $ old {count = succ c}
     newEntry Nothing = Just $ Entry {eword = t, count = 1}
