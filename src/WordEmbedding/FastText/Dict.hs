@@ -84,7 +84,7 @@ wordsFromFile modifier plain readPath =
 
 -- |
 -- The function that discard a word according to noise distribution. (As for noise distribution, you can see details in papers written by Mikolov et al.)
--- Because words that don't exist in hash map are also discarded, I recommend applying threshold function to hash map at the 1st argment in advance.
+-- I recommend applying threshold function to hash map at the 1st argment in advance because words that don't exist in hash map are also discarded.
 discard :: TMap Double -> RM.GenIO -> T.Text -> IO Bool
 discard diss gen word =
   case HS.lookup word diss of
@@ -105,7 +105,7 @@ getLine h (Dict{entries = ents, discards = diss}) rand =
 
 initFromFile :: Args -> IO Dict
 initFromFile (_, Options{input = inp, tSub = tsub, minCount = minc}) = do
-  ents <- wordsFromFile addEnts HS.empty inp
+  ents <- wordsFromFile addEntries HS.empty inp
   let newEnts = threshold ents minc
       newTkns = sizeTokens newEnts
       newDiss = initDiscards tsub newEnts newTkns in
@@ -118,8 +118,8 @@ threshold ents t = HS.filter (\e -> t > count e) ents
 sizeTokens :: TMap Entry -> Word
 sizeTokens ents = foldr (\e acc -> acc + count e) 0 ents
 
-addEnts :: TMap Entry -> T.Text -> TMap Entry
-addEnts ents t = HS.alter newEntry t ents
+addEntries :: TMap Entry -> T.Text -> TMap Entry
+addEntries ents t = HS.alter newEntry t ents
   where
     newEntry (Just old@Entry{count = c}) = Just $ old {count = succ c}
     newEntry Nothing = Just $ Entry {eword = t, count = 1}
