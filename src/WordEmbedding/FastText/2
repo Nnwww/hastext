@@ -6,7 +6,7 @@ import qualified WordEmbedding.FastText.Dict      as FD
 import qualified Data.Text                        as T
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Array.Unboxed               as AU
-import qualified Data.Vector.Generic              as VG
+import qualified Data.Vector                      as V
 import qualified Data.Foldable                    as F
 import qualified Data.List                        as L
 import qualified Data.Monoid                      as M
@@ -18,6 +18,8 @@ import qualified System.Random.MWC.CondensedTable as RMC
 
 import Control.Monad
 import Control.Monad.ST
+
+type Vec a = V.Vector a
 
 data Model s = Model
   { weightI   :: LAD.STMatrix s Double
@@ -34,29 +36,26 @@ data Model s = Model
   , negpos    :: Word
   }
 
--- genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
--- -- genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
--- genLossFunction args dic lr input =
---   case los of
---     FA.Negative     -> genNegatives 0.75 ents lr input
---     FA.Hierarchical -> genHierarchical ents lr input
---   where
---     ents = FD.entries dic
---     los  = FA.loss . snd $ args
+genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
+-- genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
+genLossFunction args dict lr input =
+  case los of
+    FA.Negative     -> genNegatives 0.75 ents lr input
+    FA.Hierarchical -> genHierarchical ents lr input
+  where
+    ents = entries dict
 
 genNegatives :: Double           -- ^ nth power of unigram distribution
-             -> FD.TMap FD.Entry -- ^ vocabulary set for constructing a noise distribution table
+             -> FD.TMap FD.Entry -- ^ vocabulary set for constructing a negative sampling table
              -> (Double          -- ^ learning rate
-             ->  RM.GenST s      -- ^ a PRNG state in the ST monad
              ->  T.Text          -- ^ a input word
-             ->  ST s FD.Entry)    -- ^ loss parameter
-genNegatives power ents lr gen input = RMC.genFromTable noiseDist gen
+             ->  Double)         -- ^ loss parameter
+genNegatives power ents lr input = undefined
   where
-    noiseDist :: RMC.CondensedTableV FD.Entry
-    noiseDist = RMC.tableFromProbabilities . VG.map (\(ent, ctp) -> (ent, ctp / z)) . VG.fromList $ countToPowers
+    noiseDist = undefined
     -- Z is a normalization parameter of the noise distribution in paper.
-    z = L.sum . L.map snd $ countToPowers
-    countToPowers = HS.elems . HS.map (\ent -> (ent, countToPower ent)) $ ents
+    z = L.sum . L.map snd . HS.elems $ countToPowers
+    countToPowers = HS.map (\v -> (v, countToPower v)) ents
     countToPower ent = (fromIntegral . FD.count $ ent) ** power
 
 genHierarchical :: FD.TMap FD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
