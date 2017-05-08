@@ -21,15 +21,19 @@ import qualified Data.Conduit.Combinators     as CC
 import qualified Data.Store                   as S
 import           TH.Derive (Deriving, derive)
 
+
 type TMap a = HS.HashMap T.Text a
 type Vec  a = V.Vector a
 
 data Entry = Entry
-  { eword    :: T.Text
-  , count    :: Word
+  { eword :: T.Text
+  , count :: Word
   -- , etype    :: EntryType
   -- , subwords :: ~(Vec T.Text)
   }
+
+eqEword :: Entry -> Entry -> Bool
+eqEword a b = (eword a) == (eword b)
 
 data EntryType = EWord | ELabel
 
@@ -41,10 +45,6 @@ data Dict = Dict
 
 maxVocabSize = 30000000 :: Int
 maxLineSize  =     1024 :: Int
-
-eos = "</s>" :: T.Text
-bow =    "<" :: T.Text
-eow =    ">" :: T.Text
 
 -- deriving a binary serialization at compile-time.
 $($(derive [d|

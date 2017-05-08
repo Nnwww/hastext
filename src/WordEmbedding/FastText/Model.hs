@@ -6,6 +6,7 @@ import qualified WordEmbedding.FastText.Dict      as FD
 import qualified Data.Text                        as T
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Array.Unboxed               as AU
+import qualified Data.Vector                      as V
 import qualified Data.Vector.Generic              as VG
 import qualified Data.Foldable                    as F
 import qualified Data.List                        as L
@@ -20,20 +21,22 @@ import Control.Monad
 import Control.Monad.ST
 
 data Model s = Model
-  { weightI   :: LAD.STMatrix s Double
-  , weightO   :: LAD.STMatrix s Double
+  { ws        :: FD.TMap (Weights s)
   , dict      :: FD.Dict
-  , loss      :: Double
-  , hiddenL   :: LA.Vector Double
-  , outputL   :: LA.Vector Double
-  , grad      :: LA.Vector Double
+  --, loss      :: Double
+  --, hiddenL   :: LA.Vector Double
+  --, outputL   :: LA.Vector Double
+  --, grad      :: LA.Vector Double
   , sigf      :: Double -> Double
   , logf      :: Double -> Double
+  , noiseDist :: RMC.CondensedTableV FD.Entry
   , gRand     :: RM.GenST s
-  , negatives :: LA.Vector Double
-  , negpos    :: Word
   }
 
+data Weights s = Weights
+  { wI :: LAD.STVector s Double
+  , wO :: LAD.STVector s Double
+  }
 -- genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
 -- -- genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
 -- genLossFunction args dic lr input =
@@ -44,29 +47,43 @@ data Model s = Model
 --     ents = FD.entries dic
 --     los  = FA.loss . snd $ args
 
-genNegatives :: Double           -- ^ nth power of unigram distribution
-             -> FD.TMap FD.Entry -- ^ vocabulary set for constructing a noise distribution table
-             -> (Double          -- ^ learning rate
-             ->  RM.GenST s      -- ^ a PRNG state in the ST monad
-             ->  T.Text          -- ^ a input word
-             ->  ST s FD.Entry)    -- ^ loss parameter
-genNegatives power ents lr gen input = RMC.genFromTable noiseDist gen
+computeHidden :: LA.Vector T.Text -> LA.Vector Double
+computeHidden input = undefined
+
+update :: Model s -> V.Vector T.Text -> T.Text -> Double -> ST s ()
+update model inputs updTarget lr = undefined
+
+
+getNegative :: Model s -> T.Text -> ST s FD.Entry
+getNegative model input = tryLoop
   where
-    noiseDist :: RMC.CondensedTableV FD.Entry
-    noiseDist = RMC.tableFromProbabilities . VG.map (\(ent, ctp) -> (ent, ctp / z)) . VG.fromList $ countToPowers
+    tryLoop = do
+      ent <- RMC.genFromTable noise rand
+      if FD.eword ent == input then tryLoop else return ent
+    noise = noiseDist model
+    rand = gRand model
+
+genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
+                     -> FD.TMap FD.Entry             -- ^ vocabulary set for constructing a noise distribution table
+                     -> RMC.CondensedTableV FD.Entry -- ^ noise distribution table
+genNoiseDistribution power ents =
+  RMC.tableFromProbabilities . VG.map (\(ent, ctp) -> (ent, ctp / z)) . VG.fromList $ countToPowers
+  where
     -- Z is a normalization parameter of the noise distribution in paper.
     z = L.sum . L.map snd $ countToPowers
     countToPowers = HS.elems . HS.map (\ent -> (ent, countToPower ent)) $ ents
     countToPower ent = (fromIntegral . FD.count $ ent) ** power
 
 genHierarchical :: FD.TMap FD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
-                -> (Double       -- ^ learning rate
-                ->  T.Text       -- ^ a input word
-                ->  Double)      -- ^ loss parameter
+                -> (Double          -- ^ learning rate
+                ->  T.Text          -- ^ a input word
+                ->  Double)         -- ^ loss parameter
 genHierarchical ents lr input = undefined
 
 -- | generate memorized sigmoid function.
-genSigmoid :: Word -> Double -> (Double -> Double)
+genSigmoid :: Word -- ^ table size
+           -> Double -- ^ the maximum value of x axis
+           -> (Double -> Double)
 genSigmoid tableSize maxValue x
   | x < -maxValue = 0.0
   | maxValue < x  = 1.0
