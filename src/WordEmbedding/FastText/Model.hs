@@ -19,23 +19,24 @@ import qualified System.Random.MWC.CondensedTable as RMC
 
 import Control.Monad
 import Control.Monad.ST
+import Control.Monad.State
 
 data Model s = Model
-  { ws        :: FD.TMap (Weights s)
+  { args      :: FA.Args
+  , weights   :: FD.TMap Weights
   , dict      :: FD.Dict
-  --, loss      :: Double
-  --, hiddenL   :: LA.Vector Double
-  --, outputL   :: LA.Vector Double
-  --, grad      :: LA.Vector Double
+  , loss      :: Double
+  , hiddenL   :: LA.Vector Double
+  , gradV     :: LA.Vector Double
   , sigf      :: Double -> Double
   , logf      :: Double -> Double
   , noiseDist :: RMC.CondensedTableV FD.Entry
   , gRand     :: RM.GenST s
   }
 
-data Weights s = Weights
-  { wI :: LAD.STVector s Double
-  , wO :: LAD.STVector s Double
+data Weights = Weights
+  { wI :: LA.Vector Double
+  , wO :: LA.Vector Double
   }
 -- genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
 -- -- genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
@@ -47,12 +48,46 @@ data Weights s = Weights
 --     ents = FD.entries dic
 --     los  = FA.loss . snd $ args
 
-computeHidden :: LA.Vector T.Text -> LA.Vector Double
-computeHidden input = undefined
+
+lookE hs k = hs HS.! k
+
+inverse :: (Integral i, Fractional r) => i -> r
+inverse d = 1.0 / (fromIntegral d)
+
+computeHidden :: FD.TMap Weights -> V.Vector T.Text -> LA.Vector Double
+computeHidden wghs input = (inverse . V.length $ input) `LA.scale` sumVectors
+  where
+    sumVectors = V.foldl1 (+) . V.map (wI . lookE wghs) $ input
+
+binaryLogistic :: Double -> Bool -> T.Text -> State (Model s) ()
+binaryLogistic lr label input = do
+  model <- get
+  let ws         = weights model
+      hidden     = hiddenL model
+      sigt       = sigf model
+      logt       = logf model
+      wo         = wO $ lookE ws input
+      score      = sigt $ LA.dot wo hidden
+      alpha      = lr * ((if label then 1 else 0) - score)
+      newWO      = wo + (LA.scale alpha hidden)
+      updateWO w = Just $ w {wO = newWO}
+      newGrad    = (gradV model) + (LA.scale alpha wo)
+      minusLog   = if label then -(logt score) else -(logt $ 1.0 - score)
+  put $ model {loss = minusLog, gradV = newGrad, weights = HS.update updateWO input ws}
+
+negativeSampling :: Model s -> Double -> T.Text -> ST s (Model s)
+negativeSampling model lr input = do
+  resBinLog <- foldM lossf positive [1 .. negs]
+  return $ execState resBinLog model
+  where
+    negs         = FA.negatives . snd . args $ model
+    presetBinLog = binaryLogistic lr
+    positive     = presetBinLog True input
+    lossf _ _    = (return . presetBinLog False . FD.eword) =<< getNegative model input
+
 
 update :: Model s -> V.Vector T.Text -> T.Text -> Double -> ST s ()
 update model inputs updTarget lr = undefined
-
 
 getNegative :: Model s -> T.Text -> ST s FD.Entry
 getNegative model input = tryLoop
@@ -81,7 +116,7 @@ genHierarchical :: FD.TMap FD.Entry -- ^ vocabulary set for building a hierarchi
 genHierarchical ents lr input = undefined
 
 -- | generate memorized sigmoid function.
-genSigmoid :: Word -- ^ table size
+genSigmoid :: Word   -- ^ table size
            -> Double -- ^ the maximum value of x axis
            -> (Double -> Double)
 genSigmoid tableSize maxValue x
