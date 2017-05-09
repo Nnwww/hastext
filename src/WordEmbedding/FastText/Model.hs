@@ -73,7 +73,7 @@ binaryLogistic lr label input = do
       updateWO w = Just $ w {wO = newWO}
       newGrad    = (gradV model) + (LA.scale alpha wo)
       minusLog   = if label then -(logt score) else -(logt $ 1.0 - score)
-  put $ model {loss = minusLog, gradV = newGrad, weights = HS.update updateWO input ws}
+  put $ model {loss = minusLog + loss model, gradV = newGrad, weights = HS.update updateWO input ws}
 
 negativeSampling :: Model s -> Double -> T.Text -> ST s (Model s)
 negativeSampling model lr input = do
