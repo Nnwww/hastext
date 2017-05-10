@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module WordEmbedding.FastText.Model where
 
 import qualified WordEmbedding.FastText.Args      as FA
@@ -34,6 +35,7 @@ data Model s = Model
   , gRand     :: RM.GenST s
   }
 
+-- | The pair of input/output word vectors correspond to a word.
 data Weights = Weights
   { wI :: LA.Vector Double
   , wO :: LA.Vector Double
@@ -50,16 +52,25 @@ data Weights = Weights
 
 
 lookE hs k = hs HS.! k
+{-# INLINE lookE #-}
 
 inverse :: (Integral i, Fractional r) => i -> r
 inverse d = 1.0 / (fromIntegral d)
+{-# INLINE inverse #-}
 
 computeHidden :: FD.TMap Weights -> V.Vector T.Text -> LA.Vector Double
 computeHidden wghs input = (inverse . V.length $ input) `LA.scale` sumVectors
   where
     sumVectors = V.foldl1 (+) . V.map (wI . lookE wghs) $ input
+{-# INLINE computeHidden #-}
 
-binaryLogistic :: Double -> Bool -> T.Text -> State (Model s) ()
+-- |
+-- The function that update model based on formulas of the objective function and binary label.
+-- This function take a strategy using State monad to keep updating models.
+binaryLogistic :: Double -- ^ learning late
+               -> Bool   -- ^ label in Xin's tech report. (If True, positive word. If False, negative-sampled word. )
+               -> T.Text -- ^ a updating target word
+               -> State (Model s) ()
 binaryLogistic lr label input = do
   model <- get
   let ws         = weights model
@@ -71,21 +82,30 @@ binaryLogistic lr label input = do
       alpha      = lr * ((if label then 1 else 0) - score)
       newWO      = wo + (LA.scale alpha hidden)
       updateWO w = Just $ w {wO = newWO}
-      newGrad    = (gradV model) + (LA.scale alpha wo)
       minusLog   = if label then -(logt score) else -(logt $ 1.0 - score)
-  put $ model {loss = minusLog + loss model, gradV = newGrad, weights = HS.update updateWO input ws}
+      !newGrad   = (gradV model) + (LA.scale alpha wo)
+      !newLoss   = minusLog + loss model
+      !newWs     = HS.update updateWO input ws
+  put $ model {loss = newLoss, gradV = newGrad, weights = newWs}
 
-negativeSampling :: Model s -> Double -> T.Text -> ST s (Model s)
+-- |
+-- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
+negativeSampling :: Model s
+                 -> Double         -- ^ learning rate
+                 -> T.Text         -- ^ a updating target word
+                 -> ST s (Model s) -- ^ ST monad is used for random generater in Models.
 negativeSampling model lr input = do
-  resBinLog <- foldM lossf positive [1 .. negs]
+  resBinLog <- foldM negativeSamplingIteration positive [0 .. negs]
   return $ execState resBinLog model
   where
     negs         = FA.negatives . snd . args $ model
     presetBinLog = binaryLogistic lr
     positive     = presetBinLog True input
-    lossf _ _    = (return . presetBinLog False . FD.eword) =<< getNegative model input
+    negativeSamplingIteration _ _ =
+      (return . presetBinLog False . FD.eword) =<< getNegative model input
 
-
+-- |
+--
 update :: Model s -> V.Vector T.Text -> T.Text -> Double -> ST s ()
 update model inputs updTarget lr = undefined
 
