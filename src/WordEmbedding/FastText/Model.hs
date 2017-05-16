@@ -8,10 +8,7 @@ import qualified Data.Text                        as T
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Array.Unboxed               as AU
 import qualified Data.Vector                      as V
-import qualified Data.Vector.Generic              as VG
-import qualified Data.Foldable                    as F
 import qualified Data.List                        as L
-import qualified Data.Monoid                      as M
 
 import qualified Numeric.LinearAlgebra            as LA
 import qualified Numeric.LinearAlgebra.Devel      as LAD
@@ -37,8 +34,8 @@ data Model s = Model
 
 -- | The pair of input/output word vectors correspond to a word.
 data Weights = Weights
-  { wI :: LA.Vector Double
-  , wO :: LA.Vector Double
+  { wI :: LA.Vector Double -- ^ input word vector
+  , wO :: LA.Vector Double -- ^ output word vector
   }
 -- genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
 -- -- genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
@@ -68,7 +65,7 @@ computeHidden wghs input = (inverse . V.length $ input) `LA.scale` sumVectors
 -- The function that update model based on formulas of the objective function and binary label.
 -- This function take a strategy using State monad to keep updating models.
 binaryLogistic :: Double -- ^ learning late
-               -> Bool   -- ^ label in Xin's tech report. (If True, positive word. If False, negative-sampled word. )
+               -> Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
                -> State (Model s) ()
 binaryLogistic lr label input = do
@@ -81,12 +78,12 @@ binaryLogistic lr label input = do
       score      = sigt $ LA.dot wo hidden
       alpha      = lr * ((if label then 1 else 0) - score)
       newWO      = wo + (LA.scale alpha hidden)
-      updateWO w = Just $ w {wO = newWO}
-      minusLog   = if label then -(logt score) else -(logt $ 1.0 - score)
+      updateWO w = Just $ w{wO = newWO}
+      minusLog   = if label then -(logt score) else -(logt $ (1.0 - score))
       !newGrad   = (gradV model) + (LA.scale alpha wo)
       !newLoss   = minusLog + loss model
       !newWs     = HS.update updateWO input ws
-  put $ model {loss = newLoss, gradV = newGrad, weights = newWs}
+  put $ model{loss = newLoss, gradV = newGrad, weights = newWs}
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
@@ -95,19 +92,23 @@ negativeSampling :: Model s
                  -> T.Text         -- ^ a updating target word
                  -> ST s (Model s) -- ^ ST monad is used for random generater in Models.
 negativeSampling model lr input = do
-  resBinLog <- foldM negativeSamplingIteration positive [0 .. negs]
-  return $ execState resBinLog model
+  processForBinLogs <- foldM sampleNegative samplePositive [0 .. negs]
+  return $ execState processForBinLogs model
   where
     negs         = FA.negatives . snd . args $ model
     presetBinLog = binaryLogistic lr
-    positive     = presetBinLog True input
-    negativeSamplingIteration _ _ =
+    samplePositive     = presetBinLog True input
+    sampleNegative _ _ =
       (return . presetBinLog False . FD.eword) =<< getNegative model input
 
 -- |
---
-update :: Model s -> V.Vector T.Text -> T.Text -> Double -> ST s ()
-update model inputs updTarget lr = undefined
+-- The function that update a model. This function is a entry point of Model module.
+update :: Model s -> V.Vector T.Text -> T.Text -> Double -> ST s (Model s)
+update model inputs updTarget lr = do
+  let newH = computeHidden (weights model) inputs
+  m <- negativeSampling model{hiddenL = newH} lr updTarget
+  let wIPlusGrad ws k = HS.update (\w -> Just w{wI = (+ gradV m) . wI $ w}) k ws
+  return $ m{weights = V.foldl' wIPlusGrad (weights m) inputs}
 
 getNegative :: Model s -> T.Text -> ST s FD.Entry
 getNegative model input = tryLoop
@@ -122,7 +123,7 @@ genNoiseDistribution :: Double                       -- ^ nth power of unigram d
                      -> FD.TMap FD.Entry             -- ^ vocabulary set for constructing a noise distribution table
                      -> RMC.CondensedTableV FD.Entry -- ^ noise distribution table
 genNoiseDistribution power ents =
-  RMC.tableFromProbabilities . VG.map (\(ent, ctp) -> (ent, ctp / z)) . VG.fromList $ countToPowers
+  RMC.tableFromProbabilities . V.map (\(ent, ctp) -> (ent, ctp / z)) . V.fromList $ countToPowers
   where
     -- Z is a normalization parameter of the noise distribution in paper.
     z = L.sum . L.map snd $ countToPowers
@@ -130,9 +131,9 @@ genNoiseDistribution power ents =
     countToPower ent = (fromIntegral . FD.count $ ent) ** power
 
 genHierarchical :: FD.TMap FD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
-                -> (Double          -- ^ learning rate
-                ->  T.Text          -- ^ a input word
-                ->  Double)         -- ^ loss parameter
+                -> Double          -- ^ learning rate
+                -> T.Text          -- ^ a input word
+                -> Double         -- ^ loss parameter
 genHierarchical ents lr input = undefined
 
 -- | generate memorized sigmoid function.

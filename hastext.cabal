@@ -18,6 +18,7 @@ library
   exposed-modules:     WordEmbedding.FastText.Args
                      , WordEmbedding.FastText.Dict
                      , WordEmbedding.FastText.Model
+                     , WordEmbedding.FastText
   build-depends:       base >= 4.7 && < 5
                      , array >= 0.5
                      , primitive >= 0.6.1

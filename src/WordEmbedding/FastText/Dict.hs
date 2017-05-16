@@ -83,7 +83,8 @@ wordsFromFile modifier plain readPath =
   .| CC.foldl modifier plain
 
 -- |
--- The function that discard a word according to noise distribution. (As for noise distribution, you can see details in papers written by Mikolov et al.)
+-- The function that discard a word according to noise distribution.
+-- (As for noise distribution, you can see details in papers written by Mikolov et al.)
 -- I recommend applying threshold function to hash map at the 1st argment in advance because words that don't exist in hash map are also discarded.
 discard :: TMap Double -> RM.GenIO -> T.Text -> IO Bool
 discard diss gen word =
