@@ -23,7 +23,6 @@ import           TH.Derive (Deriving, derive)
 
 
 type TMap a = HS.HashMap T.Text a
-type Vec  a = V.Vector a
 
 data Entry = Entry
   { eword :: T.Text
@@ -84,7 +83,6 @@ wordsFromFile modifier plain readPath =
 
 -- |
 -- The function that discard a word according to noise distribution.
--- (As for noise distribution, you can see details in papers written by Mikolov et al.)
 -- I recommend applying threshold function to hash map at the 1st argment in advance because words that don't exist in hash map are also discarded.
 discard :: TMap Double -> RM.GenIO -> T.Text -> IO Bool
 discard diss gen word =
@@ -94,7 +92,7 @@ discard diss gen word =
       randProb <- RM.uniform gen
       return $ randProb > disProb
 
-getLine :: Handle -> Dict -> RM.GenIO -> IO (Vec Entry)
+getLine :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
 getLine h (Dict{entries = ents, discards = diss}) rand =
   runConduit $ CC.sourceHandle h
   .| CC.decodeUtf8

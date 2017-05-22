@@ -5,10 +5,12 @@ import qualified WordEmbedding.FastText.Dict  as FD
 import qualified WordEmbedding.FastText.Model as FM
 import qualified Data.Vector                  as V
 import qualified Data.Text                    as T
-
-import qualified Numeric.LinearAlgebra            as LA
+import qualified Data.Word                    as W
+import qualified Numeric.LinearAlgebra        as LA
 import qualified System.Random.MWC            as RM
+import qualified System.IO                    as SI
 
+import Control.Concurrent
 import Control.Monad.ST
 
 -- The function that return a range of the dynamic window.
@@ -38,10 +40,17 @@ cbow model lr line = V.ifoldM update model line
       FM.update m inputRange updTarget lr
 
 -- TODO: compare parallelization using MVar with one using ParIO.
-trainThread :: Args -> LA
-trainThread args input output =
+trainThread :: FA.Args -> FM.Model -> MVar W.Word64 -> Integer -> IO ()
+trainThread args model tokenCountRef threadNo = do
+  h <- SI.openFile inputPath SI.ReadMode
+  size <- SI.hFileSize h
+  SI.hSeek h SI.AbsoluteSeek (size * threadNo `quot` threads)
 
-
+  SI.hClose h
+  where
+    inputPath = FA.input . snd $ args
+    threads = fromIntegral . FA.threads . snd $ args
+    ntokens = FD.ntokens . FM.dict $ model
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)
