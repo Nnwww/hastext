@@ -9,6 +9,7 @@ import qualified Data.HashMap.Strict              as HS
 import qualified Data.Array.Unboxed               as AU
 import qualified Data.Vector                      as V
 import qualified Data.List                        as L
+import qualified Data.Bifunctor                   as DB
 
 import qualified Numeric.LinearAlgebra            as LA
 import qualified Numeric.LinearAlgebra.Devel      as LAD
@@ -123,9 +124,10 @@ genNoiseDistribution :: Double                       -- ^ nth power of unigram d
                      -> FD.TMap FD.Entry             -- ^ vocabulary set for constructing a noise distribution table
                      -> RMC.CondensedTableV FD.Entry -- ^ noise distribution table
 genNoiseDistribution power ents =
-  RMC.tableFromProbabilities . V.map (\(ent, ctp) -> (ent, ctp / z)) . V.fromList $ countToPowers
+  RMC.tableFromProbabilities . V.map (DB.second divZ) . V.fromList $ countToPowers
   where
     -- Z is a normalization parameter of the noise distribution in paper.
+    divZ a = a / z
     z = L.sum . L.map snd $ countToPowers
     countToPowers = HS.elems . HS.map (\ent -> (ent, countToPower ent)) $ ents
     countToPower ent = (fromIntegral . FD.count $ ent) ** power

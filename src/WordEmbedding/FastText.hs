@@ -7,38 +7,39 @@ import qualified WordEmbedding.FastText.Model as FM
 import qualified Data.Vector                  as V
 import qualified Data.Text                    as T
 
-import qualified System.Random.MWC                as RM
+import qualified System.Random.MWC            as RM
 
 import Control.Monad.ST
 
+-- The function that return a range of the dynamic window.
+windowRange :: V.Vector T.Text -> FM.Model s -> Int -> ST s (V.Vector T.Text)
+windowRange line model targetIdx = do
+  winRange <- RM.uniformR (0, negs) . FM.gRand $ model
+  let winFrom = if targetIdx - winRange > 0 then targetIdx - winRange else 0
+      winTo   = if V.length line > targetIdx + winRange then targetIdx + winRange else V.length line - 1
+      inWindowAndNotTarget i _ = winFrom < i && i < winTo && i /= targetIdx
+  return $ V.ifilter inWindowAndNotTarget line
+  where
+    negs = fromIntegral . FA.negatives . snd . FM.args $ model
 
 skipGram :: forall s. FM.Model s -> Double -> V.Vector T.Text -> ST s (FM.Model s)
-skipGram model lr line = V.ifoldM slideWindow model line
+skipGram model lr line = V.ifoldM updateEachWinElems model line
   where
-    windowRange = RM.uniformR (0, negs) . FM.gRand $ model
-    negs = fromIntegral . FA.negatives . snd . FM.args $ model
+    updateEachWinElems m targetIdx updTarget = do
+      updateRange <- windowRange line m targetIdx
+      V.foldM (\acc e -> FM.update acc (V.singleton updTarget) e lr) m updateRange
 
-    slideWindow :: FM.Model s -> Int -> T.Text -> ST s (FM.Model s)
-    slideWindow m targetIdx updTarget = do
-      win <- windowRange
-      let winFrom = if targetIdx - win > 0 then targetIdx - win else 0
-          winTo   = if V.length line > targetIdx + win then targetIdx + win else V.length line - 1
-      V.foldM (\acc e -> FM.update acc (V.singleton updTarget) e lr) m $ V.slice winFrom winTo line
 
 cbow :: forall s. FM.Model s -> Double -> V.Vector T.Text -> ST s (FM.Model s)
-cbow model lr line = V.ifoldM slideWindow
+cbow model lr line = V.ifoldM update model line
   where
-    windowRange = RM.uniformR (0, negs) . FM.gRand $ model
-    negs = fromIntegral . FA.negatives . snd . FM.args $ model
+    update m targetIdx updTarget = do
+      inputRange <- windowRange line m targetIdx
+      FM.update m inputRange updTarget lr
 
-    slideWindow :: FM.Model s -> Int -> T.Text -> ST s (FM.Model s)
-    slideWindow m targetIdx updTarget = do
-      win <- windowRange
-      let winFrom = if targetIdx - win > 0 then targetIdx - win else 0
-          winTo   = if V.length line > targetIdx + win then targetIdx + win else V.length line - 1
-      V.foldM (\acc e -> FM.update acc (V.singleton updTarget) e lr) m $ V.slice winFrom winTo line
+-- TODO: compare parallelization using MVar with one using ParIO.
+-- trainThread ::
 
-
--- TODO: write test code using simpler corpuses, and try to compare hastext's result with gensim's result.
+-- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)
 -- also try to compute outsoftmax.
