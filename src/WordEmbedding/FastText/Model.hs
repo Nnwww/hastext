@@ -16,13 +16,14 @@ import qualified Numeric.LinearAlgebra.Devel      as LAD
 import qualified System.Random.MWC                as RM
 import qualified System.Random.MWC.CondensedTable as RMC
 
+import Control.Concurrent
 import Control.Monad
 import Control.Monad.ST
 import Control.Monad.State
 
 data Model s = Model
   { args      :: FA.Args
-  , weights   :: FD.TMap Weights
+  , weights   :: MVar (FD.TMap Weights)
   , dict      :: FD.Dict
   , loss      :: Double
   , hiddenL   :: LA.Vector Double
@@ -56,10 +57,13 @@ inverse :: (Integral i, Fractional r) => i -> r
 inverse d = 1.0 / (fromIntegral d)
 {-# INLINE inverse #-}
 
-computeHidden :: FD.TMap Weights -> V.Vector T.Text -> LA.Vector Double
-computeHidden wghs input = (inverse . V.length $ input) `LA.scale` sumVectors
+computeHidden :: MVar (FD.TMap Weights) -> V.Vector T.Text -> IO (LA.Vector Double)
+computeHidden wghs input = do
+  ws <- readMVar wghs
+  let sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
+  return $ (inverse . V.length $ input) `LA.scale` sumVectors
   where
-    sumVectors = V.foldl1 (+) . V.map (wI . lookE wghs) $ input
+    getWI wghs = wI . lookE wghs
 {-# INLINE computeHidden #-}
 
 -- |

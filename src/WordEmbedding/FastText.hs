@@ -38,7 +38,8 @@ cbow model lr line = V.ifoldM update model line
       FM.update m inputRange updTarget lr
 
 -- TODO: compare parallelization using MVar with one using ParIO.
--- trainThread ::
+-- trainThread =
+
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)
