@@ -21,7 +21,7 @@ import Control.Monad
 import Control.Monad.ST
 import Control.Monad.State
 
-data Model s = Model
+data Model = Model
   { args      :: FA.Args
   , weights   :: MVar (FD.TMap Weights)
   , dict      :: FD.Dict
@@ -39,16 +39,6 @@ data Weights = Weights
   { wI :: LA.Vector Double -- ^ input word vector
   , wO :: LA.Vector Double -- ^ output word vector
   }
--- genLossFunction :: FA.Args -> FD.Dict -> (Double -> T.Text -> Double)
--- -- genLossFunction (_, FA.Options{loss = los}) (FD.Dict{FD.entries = ents}) lr input =
--- genLossFunction args dic lr input =
---   case los of
---     FA.Negative     -> genNegatives 0.75 ents lr input
---     FA.Hierarchical -> genHierarchical ents lr input
---   where
---     ents = FD.entries dic
---     los  = FA.loss . snd $ args
-
 
 lookE hs k = hs HS.! k
 {-# INLINE lookE #-}
@@ -63,59 +53,65 @@ computeHidden wghs input = do
   let sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
   return $ (inverse . V.length $ input) `LA.scale` sumVectors
   where
-    getWI wghs = wI . lookE wghs
+    getWI w = wI . lookE w
 {-# INLINE computeHidden #-}
 
 -- |
 -- The function that update model based on formulas of the objective function and binary label.
--- This function take a strategy using State monad to keep updating models.
 binaryLogistic :: Double -- ^ learning late
                -> Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
-               -> State (Model s) ()
+               -> StateT Model IO ()
 binaryLogistic lr label input = do
   model <- get
-  let ws         = weights model
+  let wsRef      = weights model
       hidden     = hiddenL model
       sigt       = sigf model
       logt       = logf model
-      wo         = wO $ lookE ws input
+  ws <- liftIO $ takeMVar wsRef
+  let wo         = wO $ lookE ws input
       score      = sigt $ LA.dot wo hidden
-      alpha      = lr * ((if label then 1 else 0) - score)
-      newWO      = wo + (LA.scale alpha hidden)
+      alpha      = lr * (boolToNum label - score)
+      newWO      = wo + LA.scale alpha hidden
       updateWO w = Just $ w{wO = newWO}
-      minusLog   = if label then -(logt score) else -(logt $ (1.0 - score))
-      !newGrad   = (gradV model) + (LA.scale alpha wo)
-      !newLoss   = minusLog + loss model
-      !newWs     = HS.update updateWO input ws
-  put $ model{loss = newLoss, gradV = newGrad, weights = newWs}
+      newWs      = HS.update updateWO input ws
+  liftIO $ putMVar wsRef newWs
+  let minusLog   = if label then negate $ logt score else negate $ logt (1.0 - score)
+      newGrad    = (gradV model) + (LA.scale alpha wo)
+      newLoss    = minusLog + loss model
+  put $ model{loss = newLoss, gradV = newGrad, weights = wsRef}
+  where
+    boolToNum = fromIntegral . fromEnum
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
-negativeSampling :: Model s
-                 -> Double         -- ^ learning rate
-                 -> T.Text         -- ^ a updating target word
-                 -> ST s (Model s) -- ^ ST monad is used for random generater in Models.
+negativeSampling :: Model
+                 -> Double   -- ^ learning rate
+                 -> T.Text   -- ^ a updating target word
+                 -> IO Model -- ^ ST monad is used for random generater in Models.
 negativeSampling model lr input = do
   processForBinLogs <- foldM sampleNegative samplePositive [0 .. negs]
-  return $ execState processForBinLogs model
+  execStateT processForBinLogs model
   where
-    negs         = FA.negatives . snd . args $ model
+    negs         = FA.negatives . snd $ args model
     presetBinLog = binaryLogistic lr
-    samplePositive     = presetBinLog True input
+    samplePositive = presetBinLog True input
     sampleNegative _ _ =
       (return . presetBinLog False . FD.eword) =<< getNegative model input
 
 -- |
 -- The function that update a model. This function is a entry point of Model module.
-update :: Model s -> V.Vector T.Text -> T.Text -> Double -> ST s (Model s)
+update :: Model -> V.Vector T.Text -> T.Text -> Double -> IO Model
 update model inputs updTarget lr = do
-  let newH = computeHidden (weights model) inputs
+  newH <- computeHidden (weights model) inputs
   m <- negativeSampling model{hiddenL = newH} lr updTarget
-  let wIPlusGrad ws k = HS.update (\w -> Just w{wI = (+ gradV m) . wI $ w}) k ws
-  return $ m{weights = V.foldl' wIPlusGrad (weights m) inputs}
+  let wIPlusGrad ws k = HS.update (\w -> Just w{wI = (+ gradV m) $ wI w}) k ws
+  let wsRef = weights m
+  ws <- takeMVar wsRef
+  putMVar wsRef $ V.foldl' wIPlusGrad ws inputs
+  return $ m{weights = wsRef}
 
-getNegative :: Model s -> T.Text -> ST s FD.Entry
+getNegative :: Model -> T.Text -> IO FD.Entry
 getNegative model input = tryLoop
   where
     tryLoop = do
