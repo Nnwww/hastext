@@ -120,6 +120,8 @@ getNegative model input = tryLoop
     noise = noiseDist model
     rand = gRand model
 
+{-# INLINE getNegative #-}
+
 genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
                      -> FD.TMap FD.Entry             -- ^ vocabulary set for constructing a noise distribution table
                      -> RMC.CondensedTableV FD.Entry -- ^ noise distribution table
