@@ -31,7 +31,7 @@ data Model s = Model
   , sigf      :: Double -> Double
   , logf      :: Double -> Double
   , noiseDist :: RMC.CondensedTableV FD.Entry
-  , gRand     :: RM.GenST s
+  , gRand     :: RM.GenIO
   }
 
 -- | The pair of input/output word vectors correspond to a word.
