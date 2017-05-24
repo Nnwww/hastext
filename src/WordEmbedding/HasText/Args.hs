@@ -1,7 +1,7 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module WordEmbedding.FastText.Args
+module WordEmbedding.HasText.Args
   ( Args
   , Method(..)
   , Options(..)

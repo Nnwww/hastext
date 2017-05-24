@@ -3,9 +3,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 
-module WordEmbedding.FastText.Dict where
+module WordEmbedding.HasText.Dict where
 
-import           WordEmbedding.FastText.Args
+import           WordEmbedding.HasText.Args
 
 import           System.IO                    as SI
 import qualified System.Random.MWC            as RM

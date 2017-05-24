@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 module Main where
 
-import WordEmbedding.FastText.Args
+import WordEmbedding.HasText.Args
 
 import Data.Semigroup ((<>))
 import Options.Applicative.Extra (execParser)

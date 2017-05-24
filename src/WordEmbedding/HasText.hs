@@ -1,8 +1,8 @@
-module WordEmbedding.FastText where
+module WordEmbedding.HasText where
 
-import qualified WordEmbedding.FastText.Args  as FA
-import qualified WordEmbedding.FastText.Dict  as FD
-import qualified WordEmbedding.FastText.Model as FM
+import qualified WordEmbedding.HasText.Args  as HA
+import qualified WordEmbedding.HasText.Dict  as FD
+import qualified WordEmbedding.HasText.Model as FM
 import qualified Data.Vector                  as V
 import qualified Data.Text                    as T
 import qualified Data.Word                    as W
@@ -22,7 +22,7 @@ windowRange line model targetIdx = do
       inWindowAndNotTarget i _ = winFrom < i && i < winTo && i /= targetIdx
   return $ V.ifilter inWindowAndNotTarget line
   where
-    negs = fromIntegral . FA.negatives . snd . FM.args $ model
+    negs = fromIntegral . HA.negatives . snd . FM.args $ model
 
 skipGram :: FM.Model -> Double -> V.Vector T.Text -> IO FM.Model
 skipGram model lr line = V.ifoldM updateEachWinElems model line
@@ -40,7 +40,7 @@ cbow model lr line = V.ifoldM update model line
       FM.update m inputRange updTarget lr
 
 -- TODO: compare parallelization using MVar with one using ParIO.
-trainThread :: FA.Args -> FM.Model -> MVar W.Word64 -> Integer -> IO ()
+trainThread :: HA.Args -> FM.Model -> MVar W.Word64 -> Integer -> IO ()
 trainThread args model tokenCountRef threadNo = do
   h <- SI.openFile inputPath SI.ReadMode
   size <- SI.hFileSize h
@@ -48,8 +48,8 @@ trainThread args model tokenCountRef threadNo = do
 
   SI.hClose h
   where
-    inputPath = FA.input . snd $ args
-    threads = fromIntegral . FA.threads . snd $ args
+    inputPath = HA.input . snd $ args
+    threads = fromIntegral . HA.threads . snd $ args
     ntokens = FD.ntokens . FM.dict $ model
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.

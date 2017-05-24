@@ -1,8 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
-module WordEmbedding.FastText.Model where
+module WordEmbedding.HasText.Model where
 
-import qualified WordEmbedding.FastText.Args      as FA
-import qualified WordEmbedding.FastText.Dict      as FD
+import qualified WordEmbedding.HasText.Args      as FA
+import qualified WordEmbedding.HasText.Dict      as FD
 
 import qualified Data.Text                        as T
 import qualified Data.HashMap.Strict              as HS
