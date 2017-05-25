@@ -1,8 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 module WordEmbedding.HasText.Model where
 
-import qualified WordEmbedding.HasText.Args      as FA
-import qualified WordEmbedding.HasText.Dict      as FD
+import qualified WordEmbedding.HasText.Args      as HA
+import qualified WordEmbedding.HasText.Dict      as HD
 
 import qualified Data.Text                        as T
 import qualified Data.HashMap.Strict              as HS
@@ -18,21 +18,27 @@ import qualified System.Random.MWC.CondensedTable as RMC
 
 import Control.Concurrent
 import Control.Monad
-import Control.Monad.ST
 import Control.Monad.State
+import Control.Monad.Reader
+
+data Params = Params
+  { args      :: HA.Args
+  , dict      :: HD.Dict
+  }
 
 data Model = Model
-  { args      :: FA.Args
-  , weights   :: MVar (FD.TMap Weights)
-  , dict      :: FD.Dict
-  , loss      :: Double
-  , hiddenL   :: LA.Vector Double
-  , gradV     :: LA.Vector Double
-  , sigf      :: Double -> Double
-  , logf      :: Double -> Double
-  , noiseDist :: RMC.CondensedTableV FD.Entry
-  , gRand     :: RM.GenIO
+  { loss        :: Double
+  , sigf        :: Double -> Double
+  , logf        :: Double -> Double
+  , wordVecRef  :: WordVecRef
+  , hiddenL     :: LA.Vector Double
+  , gradVec     :: LA.Vector Double
+  , noiseDist   :: RMC.CondensedTableV HD.Entry
+  , gRand       :: RM.GenIO
   }
+
+type WordVec    = HD.TMap Weights
+type WordVecRef = MVar WordVec
 
 -- | The pair of input/output word vectors correspond to a word.
 data Weights = Weights
@@ -47,84 +53,105 @@ inverse :: (Integral i, Fractional r) => i -> r
 inverse d = 1.0 / (fromIntegral d)
 {-# INLINE inverse #-}
 
-computeHidden :: MVar (FD.TMap Weights) -> V.Vector T.Text -> IO (LA.Vector Double)
-computeHidden wghs input = do
-  ws <- readMVar wghs
+computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
+computeHidden wsRef input = do
+  ws <- readMVar wsRef
   let sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
   return $ (inverse . V.length $ input) `LA.scale` sumVectors
   where
     getWI w = wI . lookE w
 {-# INLINE computeHidden #-}
 
+type RandomIO   = IO
+type MVarIO   = IO
+
 -- |
 -- The function that update model based on formulas of the objective function and binary label.
 binaryLogistic :: Double -- ^ learning late
                -> Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
-               -> StateT Model IO ()
+               -> StateT Model MVarIO ()
 binaryLogistic lr label input = do
   model <- get
-  let wsRef      = weights model
+  let wvRef      = wordVecRef model
       hidden     = hiddenL model
       sigt       = sigf model
       logt       = logf model
-  ws <- liftIO $ takeMVar wsRef
+  ws <- liftIO $ takeMVar wvRef
   let wo         = wO $ lookE ws input
       score      = sigt $ LA.dot wo hidden
       alpha      = lr * (boolToNum label - score)
       newWO      = wo + LA.scale alpha hidden
       updateWO w = Just $ w{wO = newWO}
       newWs      = HS.update updateWO input ws
-  liftIO $ putMVar wsRef newWs
+  liftIO $ putMVar wvRef newWs
   let minusLog   = if label then negate $ logt score else negate $ logt (1.0 - score)
-      newGrad    = (gradV model) + (LA.scale alpha wo)
+      newGrad    = (gradVec model) + (LA.scale alpha wo)
       newLoss    = minusLog + loss model
-  put $ model{loss = newLoss, gradV = newGrad, weights = wsRef}
+  put $ model{loss = newLoss, gradVec = newGrad, wordVecRef = wvRef}
   where
     boolToNum = fromIntegral . fromEnum
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
-negativeSampling :: Model
-                 -> Double   -- ^ learning rate
+negativeSampling :: Double   -- ^ learning rate
                  -> T.Text   -- ^ a updating target word
-                 -> IO Model -- ^ ST monad is used for random generater in Models.
-negativeSampling model lr input = do
-  processForBinLogs <- foldM sampleNegative samplePositive [0 .. negs]
-  execStateT processForBinLogs model
+                 -> ReaderT Params (StateT Model MVarIO) ()
+negativeSampling lr input = do
+  model <- lift  get
+  negs <- asks $ HA.negatives . snd . args
+  processForBinLogs <- liftIO $ foldM (sampleNegative model) samplePositive [0 .. negs]
+  lift $ processForBinLogs
   where
-    negs         = FA.negatives . snd $ args model
     presetBinLog = binaryLogistic lr
     samplePositive = presetBinLog True input
-    sampleNegative _ _ =
-      (return . presetBinLog False . FD.eword) =<< getNegative model input
+    sampleNegative :: Model -> StateT Model MVarIO () -> Word -> RandomIO (StateT Model MVarIO ())
+    sampleNegative m acc _ = do
+      negWord <- getNegative m input
+      return $ do
+        acc
+        presetBinLog False . HD.eword $ negWord
+
+-- update :: Model -> V.Vector T.Text -> T.Text -> Double -> IO Model
+-- update model inputs updTarget lr = do
+--   newH <- computeHidden (wordVecRef model) inputs
+--   m <- negativeSampling model{hiddenL = newH} lr updTarget
+--   let wIPlusGrad ws k = HS.update (\w -> Just w{wI = (+ gradVec m) $ wI w}) k ws
+--   let wvRef = wordVecRef m
+--   ws <- takeMVar wvRef
+--   putMVar wvRef $ V.foldl' wIPlusGrad ws inputs
+--   return $ m{wordVecRef = wvRef}
 
 -- |
 -- The function that update a model. This function is a entry point of Model module.
-update :: Model -> V.Vector T.Text -> T.Text -> Double -> IO Model
-update model inputs updTarget lr = do
-  newH <- computeHidden (weights model) inputs
-  m <- negativeSampling model{hiddenL = newH} lr updTarget
-  let wIPlusGrad ws k = HS.update (\w -> Just w{wI = (+ gradV m) $ wI w}) k ws
-  let wsRef = weights m
-  ws <- takeMVar wsRef
-  putMVar wsRef $ V.foldl' wIPlusGrad ws inputs
-  return $ m{weights = wsRef}
+update :: V.Vector T.Text -> T.Text -> Double -> ReaderT Params (StateT Model MVarIO) ()
+update inputs updTarget lr = do
+  oldModel <- lift get
+  newH <- liftIO $ computeHidden (wordVecRef oldModel) inputs
+  lift . put $ oldModel{hiddenL = newH}
+  negativeSampling lr updTarget
+  intModel <- lift get
+  let wvRef = wordVecRef intModel
+  ws <- liftIO $ takeMVar wvRef
+  liftIO . putMVar wvRef $ V.foldl' (wIPlusGrad intModel) ws inputs
+  lift . put $ intModel{wordVecRef = wvRef}
+  where
+    wIPlusGrad m ws k = HS.update (\w -> Just w{wI = (+ gradVec m) $ wI w}) k ws
 
-getNegative :: Model -> T.Text -> IO FD.Entry
+getNegative :: Model -> T.Text -> RandomIO HD.Entry
 getNegative model input = tryLoop
   where
     tryLoop = do
       ent <- RMC.genFromTable noise rand
-      if FD.eword ent == input then tryLoop else return ent
+      if HD.eword ent == input then tryLoop else return ent
     noise = noiseDist model
     rand = gRand model
 
 {-# INLINE getNegative #-}
 
 genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
-                     -> FD.TMap FD.Entry             -- ^ vocabulary set for constructing a noise distribution table
-                     -> RMC.CondensedTableV FD.Entry -- ^ noise distribution table
+                     -> HD.TMap HD.Entry             -- ^ vocabulary set for constructing a noise distribution table
+                     -> RMC.CondensedTableV HD.Entry -- ^ noise distribution table
 genNoiseDistribution power ents =
   RMC.tableFromProbabilities . V.map (DB.second divZ) . V.fromList $ countToPowers
   where
@@ -132,9 +159,9 @@ genNoiseDistribution power ents =
     divZ a = a / z
     z = L.sum . L.map snd $ countToPowers
     countToPowers = HS.elems . HS.map (\ent -> (ent, countToPower ent)) $ ents
-    countToPower ent = (fromIntegral . FD.count $ ent) ** power
+    countToPower ent = (fromIntegral . HD.count $ ent) ** power
 
-genHierarchical :: FD.TMap FD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
+genHierarchical :: HD.TMap HD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
                 -> Double          -- ^ learning rate
                 -> T.Text          -- ^ a input word
                 -> Double         -- ^ loss parameter
@@ -178,29 +205,3 @@ genLog tableSize x
     logTable = AU.listArray (0, tableSize)
       [Prelude.log $ ((i + 1e-5) / doubledTableSize) | i <- [0.0 .. doubledTableSize]]
       -- I add 1e-5 to x due to avoid computing log 0.
-
--- | The function shuffling @Numeric.LinearAlgebra.Vector@ uniformity.
-uniformShuffle :: LA.Vector Double -> RM.GenST s -> ST s (LA.Vector Double)
-uniformShuffle vec gen
-  | size <= 1 = return vec
-  | otherwise = do
-      stVec <- LAD.thawVector vec
-      uniformShuffleST stVec size gen
-      LAD.unsafeFreezeVector stVec
-  where
-    size = LA.size vec
-
-{-# INLINE uniformShuffle #-}
-
--- | The ST monad action generating sub-effect that shuffle @Numeric.LinearAlgebra.Vector@ using Fisher-Yates algorithm.
-uniformShuffleST :: LAD.STVector s Double -> Int -> RM.GenST s -> ST s ()
-uniformShuffleST stVec size gen
-  | size <= 1 = return ()
-  | otherwise = do
-      forM_ [0 .. size - 2] $ \i -> do
-        j  <- RM.uniformR (i, size - 1) gen
-        ei <- LAD.unsafeReadVector stVec i
-        LAD.unsafeWriteVector stVec i =<< LAD.unsafeReadVector stVec j
-        LAD.unsafeWriteVector stVec j ei
-
-{-# INLINE uniformShuffleST #-}
