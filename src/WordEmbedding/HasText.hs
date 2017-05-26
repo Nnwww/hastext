@@ -26,7 +26,7 @@ windowRange line model targetIdx = do
       inWindowAndNotTarget i _ = winFrom < i && i < winTo && i /= targetIdx
   return $ V.ifilter (\i e -> not $ inWindowAndNotTarget i e) line
 
-skipGram ::  Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
+skipGram :: Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
 skipGram lr line = forM_ [0..V.length line] $ \idx -> do
   model <- lift get
   params <- ask
@@ -35,13 +35,12 @@ skipGram lr line = forM_ [0..V.length line] $ \idx -> do
   where
     learn input target = HM.update (V.singleton input) target lr
 
-
--- cbow :: HM.Model -> Double -> V.Vector T.Text -> IO HM.Model
--- cbow model lr line = V.ifoldM update model line
---   where
---     update m targetIdx updTarget = do
---       inputRange <- windowRange line m targetIdx
---       HM.update m inputRange updTarget lr
+cbow :: Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
+cbow lr line = forM_ [0..V.length line] $ \idx -> do
+  model <- lift get
+  params <- ask
+  updateRange <- liftIO $ runReaderT (windowRange line model idx) params
+  HM.update updateRange (V.unsafeIndex line idx) lr
 
 -- TODO: compare parallelization using MVar with one using ParIO.
 -- trainThread :: HM.Model -> MVar W.Word -> Integer -> IO ()
