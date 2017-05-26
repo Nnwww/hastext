@@ -42,20 +42,41 @@ cbow lr line = forM_ [0..V.length line] $ \idx -> do
   updateRange <- liftIO $ runReaderT (windowRange line model idx) params
   HM.update updateRange (V.unsafeIndex line idx) lr
 
+
 -- TODO: compare parallelization using MVar with one using ParIO.
--- trainThread :: HM.Model -> MVar W.Word -> Integer -> IO ()
--- trainThread model tokenCountRef threadNo = do
---   h <- SI.openFile inputPath SI.ReadMode
---   size <- SI.hFileSize h
---   SI.hSeek h SI.AbsoluteSeek (size * threadNo `quot` threads)
---
---   SI.hClose h
---   where
---     inputPath = HA.input . snd $ args
---     threads = fromIntegral . HA.threads . snd $ args
---     ntokens = HD.ntokens . HM.dict $ model
---     epoch = undefined
---     trainLoop  = undefined
+trainThread :: MVar W.Word -> Integer -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
+trainThread tokenCountRef threadNo = do
+  (method, options) <- asks HM.args
+  dict  <- asks HM.dict
+  h     <- liftIO $ SI.openFile (HA.input options) SI.ReadMode
+  size  <- liftIO $ SI.hFileSize h
+  let threads = fromIntegral . HA.threads $ options
+  liftIO $ SI.hSeek h SI.AbsoluteSeek (size * threadNo `quot` threads)
+  let trainUntilCountUpTokens localTokenCount oldLR = do
+        tokenCountWord <- liftIO $ readMVar tokenCountRef
+        let epoch      = fromIntegral $ HA.epoch options
+            ntokens    = fromIntegral $ HD.ntokens dict
+            tokenCount = fromIntegral tokenCountWord
+        if epoch * ntokens < tokenCount
+          then liftIO $ SI.hClose h
+          else do
+          let progress = tokenCount / epoch * ntokens
+              lr = oldLR * (1.0 - progress) :: Double
+          gRand <- lift   $ gets HM.gRand
+          line  <- liftIO $ HD.getLine h dict gRand
+          (chooseMethod method) lr $ V.map HD.eword line
+          newLocalTC <- liftIO $ bufferTokenCount options (localTokenCount + (fromIntegral $ V.length line))
+          trainUntilCountUpTokens newLocalTC lr
+  trainUntilCountUpTokens 0 $ HA.lr options
+  liftIO . putStrLn $ "Finish thread " ++ show threadNo
+  where
+    chooseMethod HA.Cbow     = cbow
+    chooseMethod HA.Skipgram = skipGram
+    bufferTokenCount options localTokenCount
+      | localTokenCount <= HA.lrUpdateTokens options = return localTokenCount
+      | otherwise = do
+         modifyMVar_ tokenCountRef (return . (+ localTokenCount))
+         return 0
 
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
