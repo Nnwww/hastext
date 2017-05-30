@@ -162,9 +162,9 @@ genNoiseDistribution power ents =
     countToPower ent = (fromIntegral . HD.count $ ent) ** power
 
 genHierarchical :: HD.TMap HD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
-                -> Double          -- ^ learning rate
-                -> T.Text          -- ^ a input word
-                -> Double         -- ^ loss parameter
+                -> Double           -- ^ learning rate
+                -> T.Text           -- ^ a input word
+                -> Double           -- ^ loss parameter
 genHierarchical ents lr input = undefined
 
 -- | generate memorized sigmoid function.

@@ -11,9 +11,12 @@ module WordEmbedding.HasText.Args
   , readArgs
   ) where
 
-import qualified Data.ByteString        as BS
-import qualified Data.Store             as ST
+import qualified System.FilePath  as SF
+import qualified System.Directory as SD
+import qualified Data.ByteString  as BS
+import qualified Data.Store       as ST
 import           TH.Derive (Deriving, derive)
+
 
 -- | Arguments necessary to learn
 type Args = (Method, Options)
@@ -79,5 +82,11 @@ saveArgs :: FilePath -> Args -> IO ()
 saveArgs savePath args = BS.writeFile savePath $ ST.encode args
 
 -- | Read Args
-readArgs :: FilePath -> IO (Args)
+readArgs :: FilePath -> IO Args
 readArgs readPath = ST.decodeIO =<< BS.readFile readPath
+
+checkPath :: Args -> IO Bool
+checkPath (m, o) = do
+  existIFile <- SD.doesFileExist $ input o
+  existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ output o
+  return $ existIFile && existODir

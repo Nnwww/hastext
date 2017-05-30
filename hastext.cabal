@@ -33,6 +33,8 @@ library
                      , resourcet >= 1.1
                      , hmatrix >= 0.1
                      , mtl >= 2.2
+                     , filepath >= 1.4
+                     , directory >= 1.3
   default-language:    Haskell2010
 
 executable hastext-exe

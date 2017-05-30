@@ -4,12 +4,12 @@ module WordEmbedding.HasText where
 import qualified WordEmbedding.HasText.Args  as HA
 import qualified WordEmbedding.HasText.Dict  as HD
 import qualified WordEmbedding.HasText.Model as HM
-import qualified Data.Vector                  as V
-import qualified Data.Text                    as T
-import qualified Data.Word                    as W
-import qualified Numeric.LinearAlgebra        as LA
-import qualified System.Random.MWC            as RM
-import qualified System.IO                    as SI
+import qualified Data.Vector                 as V
+import qualified Data.Text                   as T
+import qualified Data.Word                   as W
+import qualified Numeric.LinearAlgebra       as LA
+import qualified System.Random.MWC           as RM
+import qualified System.IO                   as SI
 
 import Control.Concurrent
 import Control.Monad
@@ -78,6 +78,9 @@ trainThread tokenCountRef threadNo = do
          modifyMVar_ tokenCountRef (return . (+ localTokenCount))
          return 0
 
+train :: HA.Args -> IO ()
+train args =
+  undefined
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)
