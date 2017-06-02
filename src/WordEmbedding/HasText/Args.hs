@@ -9,6 +9,7 @@ module WordEmbedding.HasText.Args
   , learningDefault
   , saveArgs
   , readArgs
+  , checkPath
   ) where
 
 import qualified System.FilePath  as SF

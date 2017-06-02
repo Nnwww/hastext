@@ -31,9 +31,6 @@ data Entry = Entry
   -- , subwords :: ~(Vec T.Text)
   }
 
-eqEword :: Entry -> Entry -> Bool
-eqEword a b = (eword a) == (eword b)
-
 data EntryType = EWord | ELabel
 
 data Dict = Dict

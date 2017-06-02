@@ -11,6 +11,7 @@ import qualified Numeric.LinearAlgebra       as LA
 import qualified System.Random.MWC           as RM
 import qualified System.IO                   as SI
 
+import Control.Exception
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.State
@@ -19,7 +20,7 @@ import Control.Monad.Reader
 -- The function that return a range of the dynamic window.
 windowRange :: V.Vector T.Text -> HM.Model -> Int -> ReaderT HM.Params IO (V.Vector T.Text)
 windowRange line model targetIdx = do
-  negs <- asks $ fromIntegral . HA.negatives . snd . HM.args
+  negs     <- asks $ fromIntegral . HA.negatives . snd . HM.args
   winRange <- liftIO . RM.uniformR (0, negs) . HM.gRand $ model
   let winFrom = if targetIdx - winRange > 0 then targetIdx - winRange else 0
       winTo   = if V.length line > targetIdx + winRange then targetIdx + winRange else V.length line - 1
@@ -30,7 +31,7 @@ skipGram :: Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.M
 skipGram lr line = forM_ [0..V.length line] $ \idx -> do
   model <- lift get
   params <- ask
-  updateRange <- liftIO $ runReaderT (windowRange line model idx) params
+  updateRange <- liftIO $ windowRange line model idx `runReaderT` params
   mapM_ (learn $ V.unsafeIndex line idx) updateRange
   where
     learn input target = HM.update (V.singleton input) target lr
@@ -39,7 +40,7 @@ cbow :: Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarI
 cbow lr line = forM_ [0..V.length line] $ \idx -> do
   model <- lift get
   params <- ask
-  updateRange <- liftIO $ runReaderT (windowRange line model idx) params
+  updateRange <- liftIO $ windowRange line model idx `runReaderT` params
   HM.update updateRange (V.unsafeIndex line idx) lr
 
 
@@ -51,7 +52,7 @@ trainThread tokenCountRef threadNo = do
   h     <- liftIO $ SI.openFile (HA.input options) SI.ReadMode
   size  <- liftIO $ SI.hFileSize h
   let threads = fromIntegral . HA.threads $ options
-  liftIO $ SI.hSeek h SI.AbsoluteSeek (size * threadNo `quot` threads)
+  liftIO . SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` threads
   let trainUntilCountUpTokens localTokenCount oldLR = do
         tokenCountWord <- liftIO $ readMVar tokenCountRef
         let epoch      = fromIntegral $ HA.epoch options
@@ -74,13 +75,23 @@ trainThread tokenCountRef threadNo = do
     chooseMethod HA.Skipgram = skipGram
     bufferTokenCount options localTokenCount
       | localTokenCount <= HA.lrUpdateTokens options = return localTokenCount
-      | otherwise = do
+      | otherwise = do -- TODO?: logging progress rate
          modifyMVar_ tokenCountRef (return . (+ localTokenCount))
          return 0
 
 train :: HA.Args -> IO ()
-train args =
-  undefined
+train args = do
+  dict <- initDict
+
+  return ()
+  where
+    initDict = do
+      available <- HA.checkPath args
+      HD.initFromFile $ assert available args
+
+
+
+
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)

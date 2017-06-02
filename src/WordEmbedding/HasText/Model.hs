@@ -22,19 +22,19 @@ import Control.Monad.State
 import Control.Monad.Reader
 
 data Params = Params
-  { args      :: HA.Args
-  , dict      :: HD.Dict
+  { args :: HA.Args
+  , dict :: HD.Dict
   }
 
 data Model = Model
-  { loss        :: Double
-  , sigf        :: Double -> Double
-  , logf        :: Double -> Double
-  , wordVecRef  :: WordVecRef
-  , hiddenL     :: LA.Vector Double
-  , gradVec     :: LA.Vector Double
-  , noiseDist   :: RMC.CondensedTableV HD.Entry
-  , gRand       :: RM.GenIO
+  { loss       :: Double
+  , sigf       :: Double -> Double
+  , logf       :: Double -> Double
+  , wordVecRef :: WordVecRef
+  , hiddenL    :: LA.Vector Double
+  , gradVec    :: LA.Vector Double
+  , noiseDist  :: RMC.CondensedTableV HD.Entry
+  , gRand      :: RM.GenIO
   }
 
 type WordVec    = HD.TMap Weights
@@ -45,6 +45,31 @@ data Weights = Weights
   { wI :: LA.Vector Double -- ^ input word vector
   , wO :: LA.Vector Double -- ^ output word vector
   }
+
+model :: Word -> Double
+      -> Word -> Double
+      -> ReaderT Params IO Model
+model sigTableSize sigMaxValue
+      logTableSize noisePower = do
+  Params (_, lopt) ldict <- ask
+  newWordVecRef <- liftIO . newMVar . HS.map (initW lopt) . HD.entries $ ldict
+  lgRand        <- liftIO RM.createSystemRandom
+  return $ Model
+    { loss       = 0.0
+    , sigf       = genSigmoid sigTableSize sigMaxValue
+    , logf       = genLog logTableSize
+    , wordVecRef = newWordVecRef
+    , hiddenL    = LA.fromList $ dim lopt `L.replicate` 0.0
+    , gradVec    = LA.fromList $ dim lopt `L.replicate` 0.0
+    , noiseDist  = genNoiseDistribution noisePower $ HD.entries ldict
+    , gRand      = lgRand
+    }
+  where
+    initW opt _ = Weights
+      { wI = LA.fromList $ dim opt `L.replicate` 0.0
+      , wO = LA.fromList $ dim opt `L.replicate` 0.0
+      }
+    dim opt = fromIntegral $ HA.dim opt
 
 lookE hs k = hs HS.! k
 {-# INLINE lookE #-}
