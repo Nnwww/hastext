@@ -21,6 +21,7 @@ import qualified Data.Conduit.Combinators     as CC
 import qualified Data.Store                   as S
 import           TH.Derive (Deriving, derive)
 
+import Control.Monad
 
 type TMap a = HS.HashMap T.Text a
 
@@ -42,7 +43,7 @@ data Dict = Dict
 maxVocabSize = 30000000 :: Int
 maxLineSize  =     1024 :: Int
 
--- deriving a binary serialization at compile-time.
+-- deriving a binary serialization.
 $($(derive [d|
     instance Deriving (S.Store Entry)
     |]))
@@ -90,14 +91,20 @@ discard diss gen word =
       return $ randProb > disProb
 
 getLine :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
-getLine h (Dict{entries = ents, discards = diss}) rand =
+getLine h dict rand = do
+  size <- SI.hFileSize h
+  when (size == 0) $ SI.hSeek h SI.AbsoluteSeek 0
+  unsafeGetLine h dict rand
+
+unsafeGetLine :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
+unsafeGetLine h (Dict{entries = ents, discards = diss}) rand =
   runConduit $ CC.sourceHandle h
-  .| CC.decodeUtf8
-  .| CC.takeWhileE (/= '\n')
-  .| CC.splitOnUnboundedE C.isSpace
-  .| CC.filterM (discard diss rand)
-  .| CC.map (\w -> ents HS.! w)
-  .| CC.sinkVector
+    .| CC.decodeUtf8
+    .| CC.takeWhileE (/= '\n')
+    .| CC.splitOnUnboundedE C.isSpace
+    .| CC.filterM (discard diss rand)
+    .| CC.map (\w -> ents HS.! w)
+    .| CC.sinkVector
 
 initFromFile :: Args -> IO Dict
 initFromFile (_, Options{input = inp, tSub = tsub, minCount = minc}) = do
