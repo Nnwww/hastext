@@ -64,7 +64,7 @@ trainThread tokenCountRef threadNo = do
           let progress = tokenCount / epoch * ntokens
               lr = oldLR * (1.0 - progress) :: Double
           gRand <- lift   $ gets HM.gRand
-          line  <- liftIO $ HD.getLine h dict gRand
+          line  <- liftIO $ HD.getLineFromLoopingHandle h dict gRand
           (chooseMethod method) lr $ V.map HD.eword line
           newLocalTC <- liftIO $ bufferTokenCount options (localTokenCount + (fromIntegral $ V.length line))
           trainUntilCountUpTokens newLocalTC lr
