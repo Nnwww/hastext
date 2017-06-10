@@ -103,7 +103,7 @@ unsafeGetLine h (Dict{entries = ents, discards = diss}) rand =
     .| CC.takeWhileE (/= '\n')
     .| CC.splitOnUnboundedE C.isSpace
     .| CC.filterM (discard diss rand)
-    .| CC.map (\w -> ents HS.! w)
+    .| CC.map (ents HS.!)
     .| CC.sinkVector
 
 initFromFile :: Args -> IO Dict
@@ -124,7 +124,7 @@ sizeTokens ents = foldr (\e acc -> acc + count e) 0 ents
 addEntries :: TMap Entry -> T.Text -> TMap Entry
 addEntries ents t = HS.alter newEntry t ents
   where
-    newEntry (Just old@Entry{count = c}) = Just $ old {count = succ c}
-    newEntry Nothing = Just $ Entry {eword = t, count = 1}
+    newEntry (Just old@Entry{count = c}) = Just old{count = succ c}
+    newEntry Nothing = Just Entry{eword = t, count = 1}
     -- todo: implement ngram and label functionality
     -- nGrams n = (!! n) . L.transpose . L.map T.inits . T.tails

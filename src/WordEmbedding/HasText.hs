@@ -7,12 +7,14 @@ import qualified WordEmbedding.HasText.Model as HM
 import qualified Data.Vector                 as V
 import qualified Data.Text                   as T
 import qualified Data.Word                   as W
+import qualified Data.HashMap.Strict         as HS
 import qualified Numeric.LinearAlgebra       as LA
 import qualified System.Random.MWC           as RM
 import qualified System.IO                   as SI
 
-import Control.Exception
+import Control.Exception.Safe
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Reader
@@ -43,55 +45,69 @@ cbow lr line = forM_ [0..V.length line] $ \idx -> do
   updateRange <- liftIO $ windowRange line model idx `runReaderT` params
   HM.update updateRange (V.unsafeIndex line idx) lr
 
-
 -- TODO: compare parallelization using MVar with one using ParIO.
-trainThread :: MVar W.Word -> Integer -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
-trainThread tokenCountRef threadNo = do
-  (method, options) <- asks HM.args
-  dict  <- asks HM.dict
-  h     <- liftIO $ SI.openFile (HA.input options) SI.ReadMode
-  size  <- liftIO $ SI.hFileSize h
-  let threads = fromIntegral . HA.threads $ options
-  liftIO . SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` threads
-  let trainUntilCountUpTokens localTokenCount oldLR = do
-        tokenCountWord <- liftIO $ readMVar tokenCountRef
-        let epoch      = fromIntegral $ HA.epoch options
-            ntokens    = fromIntegral $ HD.ntokens dict
-            tokenCount = fromIntegral tokenCountWord
+trainThread :: HM.Params -> Integer -> HM.MVarIO HM.Params
+trainThread params@HM.Params{HM.args = (method, options), HM.dict = dict, HM.tokenCountRef = tcRef} threadNo = do
+  gRand <- RM.createSystemRandom
+  h     <- SI.openFile (HA.input options) SI.ReadMode
+  size  <- SI.hFileSize h
+  SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` threads
+  let trainUntilCountUpTokens oldModel@HM.Model{HM.localTokens = lt, HM.learningRate = oldLR} = do
+        tokenCountWord <- readMVar tcRef
+        let tokenCount = fromIntegral tokenCountWord
         if epoch * ntokens < tokenCount
-          then liftIO $ SI.hClose h
+          then SI.hClose h
           else do
-          let progress = tokenCount / epoch * ntokens
-              lr = oldLR * (1.0 - progress) :: Double
-          gRand <- lift   $ gets HM.gRand
-          line  <- liftIO $ HD.getLineFromLoopingHandle h dict gRand
-          (chooseMethod method) lr $ V.map HD.eword line
-          newLocalTC <- liftIO $ bufferTokenCount options (localTokenCount + (fromIntegral $ V.length line))
-          trainUntilCountUpTokens newLocalTC lr
-  trainUntilCountUpTokens 0 $ HA.lr options
-  liftIO . putStrLn $ "Finish thread " ++ show threadNo
+          let progress = tokenCount / (epoch * ntokens)
+              newLR    = oldLR * (1.0 - progress) :: Double
+          line <- HD.getLineFromLoopingHandle h dict gRand
+          let learning = (chooseMethod method) newLR $ V.map HD.eword line
+          newModel   <- (flip execStateT) oldModel $ runReaderT learning params
+          newLocalTC <- bufferTokenCount $ lt + (fromIntegral $ V.length line)
+          trainUntilCountUpTokens newModel{HM.localTokens = newLocalTC, HM.learningRate = newLR}
+  trainUntilCountUpTokens $ HM.initModel dim gRand
+  putStrLn $ "Finish thread " ++ show threadNo
+  return params
   where
+    dim     = fromIntegral $ HA.dim     options
+    threads = fromIntegral $ HA.threads options
+    epoch   = fromIntegral $ HA.epoch   options
+    ntokens = fromIntegral $ HD.ntokens dict
     chooseMethod HA.Cbow     = cbow
     chooseMethod HA.Skipgram = skipGram
-    bufferTokenCount options localTokenCount
+    bufferTokenCount localTokenCount
       | localTokenCount <= HA.lrUpdateTokens options = return localTokenCount
       | otherwise = do -- TODO?: logging progress rate
-         modifyMVar_ tokenCountRef (return . (+ localTokenCount))
+         modifyMVar_ tcRef (return . (+ localTokenCount))
          return 0
 
-train :: HA.Args -> IO ()
-train args = do
-  dict <- initDict
-
-  return ()
+train :: HA.Args -> IO HM.Params
+train largs@(_, opt) = do
+  check
+  dict  <- initDict
+  wvRef <- initWVRef dict
+  tcRef <- initTokenCountRef
+  let params = HM.Params
+        { HM.args          = largs
+        , HM.dict          = dict
+        , HM.sigf          = HM.genSigmoid 512 8
+        , HM.logf          = HM.genLog 512
+        , HM.noiseDist     = HM.genNoiseDistribution 0.75 $ HD.entries dict
+        , HM.wordVecRef    = wvRef
+        , HM.tokenCountRef = tcRef
+        }
+  x : _ <- mapConcurrently (trainThread params) [0.. fromIntegral $ HA.threads opt]
+  return x
   where
-    initDict = do
-      available <- HA.checkPath args
-      HD.initFromFile $ assert available args
-
-
-
-
+    initTokenCountRef = newMVar 0
+    initWVRef dic = newMVar . HS.map initW $ HD.entries dic
+    initW _  = HM.Weights{HM.wI = makeVec, HM.wO = makeVec}
+    makeVec  = LA.fromList $ replicate dim (0.0 :: Double)
+    dim      = fromIntegral $ HA.dim opt
+    initDict = HD.initFromFile largs
+    check = do
+      valid <- HA.checkPath largs
+      if not valid then throwString "Error: Invalid Arguments." else return ()
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)

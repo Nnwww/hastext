@@ -87,7 +87,7 @@ readArgs :: FilePath -> IO Args
 readArgs readPath = ST.decodeIO =<< BS.readFile readPath
 
 checkPath :: Args -> IO Bool
-checkPath (m, o) = do
+checkPath (_, o) = do
   existIFile <- SD.doesFileExist $ input o
   existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ output o
   return $ existIFile && existODir

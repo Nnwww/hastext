@@ -22,19 +22,22 @@ import Control.Monad.State
 import Control.Monad.Reader
 
 data Params = Params
-  { args :: HA.Args
-  , dict :: HD.Dict
+  { args          :: HA.Args
+  , dict          :: HD.Dict
+  , sigf          :: Double -> Double
+  , logf          :: Double -> Double
+  , noiseDist     :: RMC.CondensedTableV HD.Entry
+  , wordVecRef    :: WordVecRef
+  , tokenCountRef :: MVar Word
   }
 
 data Model = Model
-  { loss       :: Double
-  , sigf       :: Double -> Double
-  , logf       :: Double -> Double
-  , wordVecRef :: WordVecRef
-  , hiddenL    :: LA.Vector Double
-  , gradVec    :: LA.Vector Double
-  , noiseDist  :: RMC.CondensedTableV HD.Entry
-  , gRand      :: RM.GenIO
+  { localTokens     :: !Word
+  , learningRate    :: !Double
+  , loss            :: !Double
+  , hiddenL         ::  LA.Vector Double
+  , gradVec         ::  LA.Vector Double
+  , gRand           :: !RM.GenIO
   }
 
 type WordVec    = HD.TMap Weights
@@ -46,30 +49,18 @@ data Weights = Weights
   , wO :: LA.Vector Double -- ^ output word vector
   }
 
-model :: Word -> Double
-      -> Word -> Double
-      -> ReaderT Params IO Model
-model sigTableSize sigMaxValue
-      logTableSize noisePower = do
-  Params (_, lopt) ldict <- ask
-  newWordVecRef <- liftIO . newMVar . HS.map (initW lopt) . HD.entries $ ldict
-  lgRand        <- liftIO RM.createSystemRandom
-  return $ Model
-    { loss       = 0.0
-    , sigf       = genSigmoid sigTableSize sigMaxValue
-    , logf       = genLog logTableSize
-    , wordVecRef = newWordVecRef
-    , hiddenL    = LA.fromList $ dim lopt `L.replicate` 0.0
-    , gradVec    = LA.fromList $ dim lopt `L.replicate` 0.0
-    , noiseDist  = genNoiseDistribution noisePower $ HD.entries ldict
-    , gRand      = lgRand
-    }
+initModel :: Int -> RM.GenIO -> Model
+initModel dim gR = Model
+  { localTokens = 0
+  , learningRate = 0.0
+  , loss = 0.0
+  , hiddenL = zeros
+  , gradVec = zeros
+  , gRand = gR
+  }
   where
-    initW opt _ = Weights
-      { wI = LA.fromList $ dim opt `L.replicate` 0.0
-      , wO = LA.fromList $ dim opt `L.replicate` 0.0
-      }
-    dim opt = fromIntegral $ HA.dim opt
+    zeros = LA.fromList $ replicate dim 0.0
+{-# INLINE initModel #-}
 
 lookE hs k = hs HS.! k
 {-# INLINE lookE #-}
@@ -95,15 +86,12 @@ type MVarIO   = IO
 binaryLogistic :: Double -- ^ learning late
                -> Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
-               -> StateT Model MVarIO ()
+               -> ReaderT Params (StateT Model MVarIO) ()
 binaryLogistic lr label input = do
-  model <- get
-  let wvRef      = wordVecRef model
-      hidden     = hiddenL model
-      sigt       = sigf model
-      logt       = logf model
+  Params{wordVecRef = wvRef, sigf = sigt, logf = logt}     <- ask
+  model@Model{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
   ws <- liftIO $ takeMVar wvRef
-  let wo         = wO $ lookE ws input
+  let wo         = wO   $ lookE ws input
       score      = sigt $ LA.dot wo hidden
       alpha      = lr * (boolToNum label - score)
       newWO      = wo + LA.scale alpha hidden
@@ -111,11 +99,12 @@ binaryLogistic lr label input = do
       newWs      = HS.update updateWO input ws
   liftIO $ putMVar wvRef newWs
   let minusLog   = if label then negate $ logt score else negate $ logt (1.0 - score)
-      newGrad    = (gradVec model) + (LA.scale alpha wo)
-      newLoss    = minusLog + loss model
-  put $ model{loss = newLoss, gradVec = newGrad, wordVecRef = wvRef}
+      newGrad    = grad + (LA.scale alpha wo)
+      newLoss    = minusLog + ls
+  lift . put $ model{loss = newLoss, gradVec = newGrad}
   where
     boolToNum = fromIntegral . fromEnum
+{-# INLINE binaryLogistic #-}
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
@@ -123,19 +112,20 @@ negativeSampling :: Double   -- ^ learning rate
                  -> T.Text   -- ^ a updating target word
                  -> ReaderT Params (StateT Model MVarIO) ()
 negativeSampling lr input = do
-  model <- lift  get
+  genRand  <- lift $ gets gRand
+  nDst <- asks noiseDist
   negs <- asks $ HA.negatives . snd . args
-  processForBinLogs <- liftIO $ foldM (sampleNegative model) samplePositive [0 .. negs]
-  lift $ processForBinLogs
+  processForBinLogs <- liftIO $ foldM (sampleNegative nDst genRand) samplePositive [0 .. negs]
+  processForBinLogs
   where
-    presetBinLog = binaryLogistic lr
-    samplePositive = presetBinLog True input
-    sampleNegative :: Model -> StateT Model MVarIO () -> Word -> RandomIO (StateT Model MVarIO ())
-    sampleNegative m acc _ = do
-      negWord <- getNegative m input
-      return $ do
-        acc
-        presetBinLog False . HD.eword $ negWord
+    binLog = binaryLogistic lr
+    samplePositive = binLog True input
+    sampleNegative :: RMC.CondensedTableV HD.Entry -> RM.GenIO
+                   -> ReaderT Params (StateT Model MVarIO) () -> Word
+                   -> RandomIO (ReaderT Params (StateT Model MVarIO) ())
+    sampleNegative noise rand acc _ = do
+      HD.Entry{HD.eword = negWord} <- getNegative noise rand input
+      return (acc >> binLog False negWord)
 
 -- update :: Model -> V.Vector T.Text -> T.Text -> Double -> IO Model
 -- update model inputs updTarget lr = do
@@ -151,27 +141,23 @@ negativeSampling lr input = do
 -- The function that update a model. This function is a entry point of Model module.
 update :: V.Vector T.Text -> T.Text -> Double -> ReaderT Params (StateT Model MVarIO) ()
 update inputs updTarget lr = do
-  oldModel <- lift get
-  newH <- liftIO $ computeHidden (wordVecRef oldModel) inputs
-  lift . put $ oldModel{hiddenL = newH}
+  wvRef <- asks wordVecRef
+  newHidden <- liftIO $ computeHidden wvRef inputs
+  lift . modify $ updateHidden newHidden
   negativeSampling lr updTarget
-  intModel <- lift get
-  let wvRef = wordVecRef intModel
-  ws <- liftIO $ takeMVar wvRef
-  liftIO . putMVar wvRef $ V.foldl' (wIPlusGrad intModel) ws inputs
-  lift . put $ intModel{wordVecRef = wvRef}
+  grad <- lift $ gets gradVec
+  liftIO . modifyMVar_ wvRef $ return . updateWordVecs grad
   where
-    wIPlusGrad m ws k = HS.update (\w -> Just w{wI = (+ gradVec m) $ wI w}) k ws
+    updateHidden h m = m{hiddenL = h}
+    updateWordVecs grad ws = V.foldl' (wIPlusGrad grad) ws inputs
+    wIPlusGrad grad ws k = HS.update (\w -> Just w{wI = grad + wI w}) k ws
 
-getNegative :: Model -> T.Text -> RandomIO HD.Entry
-getNegative model input = tryLoop
+getNegative :: RMC.CondensedTableV HD.Entry -> RM.GenIO -> T.Text -> RandomIO HD.Entry
+getNegative noiseTable rand input = tryLoop
   where
     tryLoop = do
-      ent <- RMC.genFromTable noise rand
+      ent <- RMC.genFromTable noiseTable rand
       if HD.eword ent == input then tryLoop else return ent
-    noise = noiseDist model
-    rand = gRand model
-
 {-# INLINE getNegative #-}
 
 genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
