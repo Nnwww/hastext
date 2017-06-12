@@ -1,27 +1,25 @@
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module WordEmbedding.HasText.Dict where
 
 import           WordEmbedding.HasText.Args
 
-import           System.IO                    as SI
-import qualified System.Random.MWC            as RM
+import           System.IO                  as SI
+import qualified System.Random.MWC          as RM
 
-import qualified Data.Char                    as C
-import qualified Data.HashMap.Strict          as HS
-import qualified Data.ByteString              as BS
-import qualified Data.Vector                  as V
-import qualified Data.Text                    as T
+import qualified Data.ByteString            as BS
+import qualified Data.Char                  as C
 import           Data.Conduit
-import qualified Data.Conduit.Combinators     as CC
+import qualified Data.Conduit.Combinators   as CC
+import qualified Data.HashMap.Strict        as HS
+import qualified Data.Store                 as S
+import qualified Data.Text                  as T
+import qualified Data.Vector                as V
+import           TH.Derive                  (Deriving, derive)
 
-import qualified Data.Store                   as S
-import           TH.Derive (Deriving, derive)
-
-import Control.Monad
+import           Control.Monad
 
 type TMap a = HS.HashMap T.Text a
 
@@ -97,7 +95,7 @@ getLineFromLoopingHandle h dict rand = do
   unsafeGetLine h dict rand
 
 unsafeGetLine :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
-unsafeGetLine h (Dict{entries = ents, discards = diss}) rand =
+unsafeGetLine h Dict{entries = ents, discards = diss} rand =
   runConduit $ CC.sourceHandle h
     .| CC.decodeUtf8
     .| CC.takeWhileE (/= '\n')
@@ -111,8 +109,8 @@ initFromFile (_, Options{input = inp, tSub = tsub, minCount = minc}) = do
   ents <- wordsFromFile addEntries HS.empty inp
   let newEnts = threshold ents minc
       newTkns = sizeTokens newEnts
-      newDiss = initDiscards tsub newEnts newTkns in
-    return $ Dict newEnts newDiss newTkns
+      newDiss = initDiscards tsub newEnts newTkns
+  return $ Dict newEnts newDiss newTkns
 
 threshold :: TMap Entry -> Word -> TMap Entry
 threshold ents t = HS.filter (\e -> t > count e) ents
@@ -125,6 +123,6 @@ addEntries :: TMap Entry -> T.Text -> TMap Entry
 addEntries ents t = HS.alter newEntry t ents
   where
     newEntry (Just old@Entry{count = c}) = Just old{count = succ c}
-    newEntry Nothing = Just Entry{eword = t, count = 1}
+    newEntry Nothing                     = Just Entry{eword = t, count = 1}
     -- todo: implement ngram and label functionality
     -- nGrams n = (!! n) . L.transpose . L.map T.inits . T.tails

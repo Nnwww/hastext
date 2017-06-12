@@ -1,23 +1,22 @@
 {-# LANGUAGE ViewPatterns #-}
 module WordEmbedding.HasText where
 
+import qualified Data.HashMap.Strict         as HS
+import qualified Data.Text                   as T
+import qualified Data.Vector                 as V
+import qualified Numeric.LinearAlgebra       as LA
+import qualified System.IO                   as SI
+import qualified System.Random.MWC           as RM
 import qualified WordEmbedding.HasText.Args  as HA
 import qualified WordEmbedding.HasText.Dict  as HD
 import qualified WordEmbedding.HasText.Model as HM
-import qualified Data.Vector                 as V
-import qualified Data.Text                   as T
-import qualified Data.Word                   as W
-import qualified Data.HashMap.Strict         as HS
-import qualified Numeric.LinearAlgebra       as LA
-import qualified System.Random.MWC           as RM
-import qualified System.IO                   as SI
 
-import Control.Exception.Safe
-import Control.Concurrent
-import Control.Concurrent.Async
-import Control.Monad
-import Control.Monad.State
-import Control.Monad.Reader
+import           Control.Concurrent
+import           Control.Concurrent.Async
+import           Control.Exception.Safe
+import           Control.Monad
+import           Control.Monad.Reader
+import           Control.Monad.State
 
 -- The function that return a range of the dynamic window.
 windowRange :: V.Vector T.Text -> HM.Model -> Int -> ReaderT HM.Params IO (V.Vector T.Text)

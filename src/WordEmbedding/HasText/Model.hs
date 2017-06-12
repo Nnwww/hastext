@@ -1,25 +1,26 @@
 {-# LANGUAGE BangPatterns #-}
 module WordEmbedding.HasText.Model where
 
-import qualified WordEmbedding.HasText.Args      as HA
-import qualified WordEmbedding.HasText.Dict      as HD
+import qualified WordEmbedding.HasText.Args       as HA
+import qualified WordEmbedding.HasText.Dict       as HD
 
-import qualified Data.Text                        as T
-import qualified Data.HashMap.Strict              as HS
 import qualified Data.Array.Unboxed               as AU
-import qualified Data.Vector                      as V
-import qualified Data.List                        as L
 import qualified Data.Bifunctor                   as DB
+import qualified Data.HashMap.Strict              as HS
+import qualified Data.List                        as L
+import qualified Data.Text                        as T
+import qualified Data.Vector                      as V
 
 import qualified Numeric.LinearAlgebra            as LA
 import qualified Numeric.LinearAlgebra.Devel      as LAD
+
 import qualified System.Random.MWC                as RM
 import qualified System.Random.MWC.CondensedTable as RMC
 
-import Control.Concurrent
-import Control.Monad
-import Control.Monad.State
-import Control.Monad.Reader
+import           Control.Concurrent
+import           Control.Monad
+import           Control.Monad.Reader
+import           Control.Monad.State
 
 data Params = Params
   { args          :: HA.Args
@@ -32,12 +33,12 @@ data Params = Params
   }
 
 data Model = Model
-  { localTokens     :: !Word
-  , learningRate    :: !Double
-  , loss            :: !Double
-  , hiddenL         ::  LA.Vector Double
-  , gradVec         ::  LA.Vector Double
-  , gRand           :: !RM.GenIO
+  { localTokens  :: !Word
+  , learningRate :: !Double
+  , loss         :: !Double
+  , hiddenL      ::  LA.Vector Double
+  , gradVec      ::  LA.Vector Double
+  , gRand        :: !RM.GenIO
   }
 
 type WordVec    = HD.TMap Weights

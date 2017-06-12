@@ -1,4 +1,4 @@
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE StrictData      #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module WordEmbedding.HasText.Args
@@ -12,11 +12,11 @@ module WordEmbedding.HasText.Args
   , checkPath
   ) where
 
-import qualified System.FilePath  as SF
-import qualified System.Directory as SD
 import qualified Data.ByteString  as BS
 import qualified Data.Store       as ST
-import           TH.Derive (Deriving, derive)
+import qualified System.Directory as SD
+import qualified System.FilePath  as SF
+import           TH.Derive        (Deriving, derive)
 
 
 -- | Arguments necessary to learn
