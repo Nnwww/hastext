@@ -1,13 +1,13 @@
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE StrictData    #-}
 {-# LANGUAGE TupleSections #-}
 module Main where
 
-import WordEmbedding.HasText.Args
+import           WordEmbedding.HasText.Args
 
-import Data.Semigroup ((<>))
-import Options.Applicative.Extra (execParser)
-import Options.Applicative
-import Options.Applicative.Builder (command)
+import           Data.Semigroup              ((<>))
+import           Options.Applicative
+import           Options.Applicative.Builder (command)
+import           Options.Applicative.Extra   (execParser)
 
 {-
 The following arguments are mandatory:
@@ -38,16 +38,16 @@ The following arguments are optional:
 
 makeOptions :: Options -- default parameters
             -> Parser Options
-makeOptions (Options { lr             = ra
-                     , lrUpdateTokens = ut
-                     , dim            = di
-                     , windows        = wi
-                     , epoch          = ep
-                     , minCount       = mc
-                     , negatives      = ne
-                     , loss           = lo
-                     , tSub           = ts
-                     }) =
+makeOptions Options { lr             = ra
+                    , lrUpdateTokens = ut
+                    , dim            = di
+                    , windows        = wi
+                    , epoch          = ep
+                    , minCount       = mc
+                    , negatives      = ne
+                    , loss           = lo
+                    , tSub           = ts
+                    } =
   Options <$> inputOpt
           <*> outputOpt
           <*> lrOpt
@@ -108,8 +108,7 @@ cbow = command "cbow" opts
     cbowDefault = learningDefault
 
 parseCLI :: IO Args
-parseCLI = do
-  execParser parser
+parseCLI = execParser parser
   where
     parser = info (helper <*> commands) (fullDesc <> header "A haskell implementation of fastText")
     commands = subparser $! skipGram <> cbow

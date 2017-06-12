@@ -63,9 +63,8 @@ loadDict readPath = S.decodeIO =<< BS.readFile readPath
 initDiscards :: Double -> TMap Entry -> Word -> TMap Double
 initDiscards tsub ents tks = HS.map calcDiscard ents
   where
-    calcDiscard e =
-      let f = realToFrac (count e) / realToFrac tks in
-        (sqrt $ tsub / f) + (tsub / f)
+    calcDiscard e = sqrt (tsub / f e) + (tsub / f e)
+    f e = realToFrac (count e) / realToFrac tks
 
 -- |
 -- The function folding words splited by @Data.Char.isSpace@ from a file.
@@ -117,7 +116,7 @@ threshold ents t = HS.filter (\e -> t > count e) ents
     -- Improvable?: if I use lazy IO, it can suppress explosion of memory usage here.
 
 sizeTokens :: TMap Entry -> Word
-sizeTokens ents = foldr (\e acc -> acc + count e) 0 ents
+sizeTokens = foldr (\e acc -> acc + count e) 0
 
 addEntries :: TMap Entry -> T.Text -> TMap Entry
 addEntries ents t = HS.alter newEntry t ents

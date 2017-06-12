@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module WordEmbedding.HasText.Model where
 
 import qualified WordEmbedding.HasText.Args       as HA
@@ -12,7 +11,6 @@ import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
 
 import qualified Numeric.LinearAlgebra            as LA
-import qualified Numeric.LinearAlgebra.Devel      as LAD
 
 import qualified System.Random.MWC                as RM
 import qualified System.Random.MWC.CondensedTable as RMC
@@ -67,7 +65,7 @@ lookE hs k = hs HS.! k
 {-# INLINE lookE #-}
 
 inverse :: (Integral i, Fractional r) => i -> r
-inverse d = 1.0 / (fromIntegral d)
+inverse d = 1.0 / fromIntegral d
 {-# INLINE inverse #-}
 
 computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
@@ -100,7 +98,7 @@ binaryLogistic lr label input = do
       newWs      = HS.update updateWO input ws
   liftIO $ putMVar wvRef newWs
   let minusLog   = if label then negate $ logt score else negate $ logt (1.0 - score)
-      newGrad    = grad + (LA.scale alpha wo)
+      newGrad    = grad + LA.scale alpha wo
       newLoss    = minusLog + ls
   lift . put $ model{loss = newLoss, gradVec = newGrad}
   where
@@ -116,8 +114,7 @@ negativeSampling lr input = do
   genRand  <- lift $ gets gRand
   nDst <- asks noiseDist
   negs <- asks $ HA.negatives . snd . args
-  processForBinLogs <- liftIO $ foldM (sampleNegative nDst genRand) samplePositive [0 .. negs]
-  processForBinLogs
+  join . liftIO . foldM (sampleNegative nDst genRand) samplePositive $ [0 .. negs]
   where
     binLog = binaryLogistic lr
     samplePositive = binLog True input
@@ -186,13 +183,13 @@ genSigmoid :: Word   -- ^ table size
 genSigmoid tableSize maxValue x
   | x < -maxValue = 0.0
   | maxValue < x  = 1.0
-  | otherwise     = sigmoidTable AU.! (mapInputToIndex x)
+  | otherwise     = sigmoidTable AU.! mapInputToIndex x
   -- TODO: using closures will be less efficieny than inlined functions. Therefore there's room for consideration.
   where
     doubledTableSize = fromIntegral tableSize :: Double
 
     mapInputToIndex :: Double -> Word
-    mapInputToIndex lx = floor $ ((lx + maxValue) * doubledTableSize / maxValue / 2.0)
+    mapInputToIndex lx = floor ((lx + maxValue) * doubledTableSize / maxValue / 2.0)
 
     sigmoidTable :: AU.UArray Word Double
     sigmoidTable = AU.listArray (0, tableSize)
@@ -200,20 +197,20 @@ genSigmoid tableSize maxValue x
 
     mapIndexToTableX :: Double -> Double
     mapIndexToTableX idx = (idx * 2.0 * maxValue) / doubledTableSize - maxValue
-    lsigmoid lx = 1.0 / (1.0 + (exp $ -lx))
+    lsigmoid lx = 1.0 / (1.0 + exp (-lx))
 
 -- | generate memorized log function.
 genLog :: Word -> (Double -> Double)
 genLog tableSize x
   | 1.0 < x   = 0.0
-  | otherwise = logTable AU.! (mapInputToIndex x)
+  | otherwise = logTable AU.! mapInputToIndex x
   where
     doubledTableSize = fromIntegral tableSize :: Double
 
     mapInputToIndex :: Double -> Word
-    mapInputToIndex lx = floor $ (lx * doubledTableSize)
+    mapInputToIndex lx = floor (lx * doubledTableSize)
 
     logTable :: AU.UArray Word Double
     logTable = AU.listArray (0, tableSize)
-      [Prelude.log $ ((i + 1e-5) / doubledTableSize) | i <- [0.0 .. doubledTableSize]]
+      [Prelude.log ((i + 1e-5) / doubledTableSize) | i <- [0.0 .. doubledTableSize]]
       -- I add 1e-5 to x due to avoid computing log 0.
