@@ -91,3 +91,6 @@ checkPath (_, o) = do
   existIFile <- SD.doesFileExist $ input o
   existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ output o
   return $ existIFile && existODir
+
+checkOParams :: Args -> Bool
+checkOParams (_, o) = 0 /= threads o
