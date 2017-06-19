@@ -28,7 +28,7 @@ windowRange args model line targetIdx = do
   where
     negs = fromIntegral . HA.negatives . snd $ args
 
-skipGram ::  Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
+skipGram :: Double -> V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
 skipGram lr line = forM_ [0..V.length line] $ \idx -> do
   args <- asks HM.args
   model <- lift get
@@ -43,7 +43,7 @@ cbow lr line = forM_ [0..V.length line] $ \idx -> do
   updateRange <- liftIO $ windowRange args model line idx
   HM.update updateRange (V.unsafeIndex line idx) lr
 
--- TODO: compare parallelization using MVar with one using ParIO.
+-- TODO: compare parallelization using MVar with one using ParIO etc.
 trainThread :: HM.Params -> Integer -> HM.MVarIO HM.Params
 trainThread params@HM.Params{HM.args = (method, options), HM.dict = dict, HM.tokenCountRef = tcRef} threadNo = do
   gRand <- RM.createSystemRandom
@@ -98,14 +98,14 @@ train largs@(_, opt) = do
   return x
   where
     initTokenCountRef = newMVar 0
-    initWVRef dic = newMVar . HS.map initW $ HD.entries dic
-    initW _  = HM.Weights{HM.wI = makeVec, HM.wO = makeVec}
-    makeVec  = LA.fromList $ replicate dim (0.0 :: Double)
-    dim      = fromIntegral $ HA.dim opt
-    initDict = HD.initFromFile largs
+    initWVRef = newMVar . HS.map initW . HD.entries
+    initW _   = HM.Weights{HM.wI = makeVec, HM.wO = makeVec}
+    makeVec   = LA.fromList $ replicate dim (0.0 :: Double)
+    dim       = fromIntegral $ HA.dim opt
+    initDict  = HD.initFromFile largs
     check = do
-      valid <- HA.checkPath largs
-      unless valid $ throwString "Error: Invalid Arguments."
+      validOpts <- HA.validOpts largs
+      unless validOpts $ throwString "Error: Invalid Arguments."
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)

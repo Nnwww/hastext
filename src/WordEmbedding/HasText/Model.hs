@@ -20,16 +20,18 @@ import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.State
 
+-- | A parameter throughout learning. Params should be thread-safe because it is shared among threads.
 data Params = Params
-  { args          :: HA.Args
-  , dict          :: HD.Dict
-  , sigf          :: Double -> Double
-  , logf          :: Double -> Double
-  , noiseDist     :: RMC.CondensedTableV HD.Entry
-  , wordVecRef    :: WordVecRef
-  , tokenCountRef :: MVar Word
+  { args          :: !HA.Args
+  , dict          :: !HD.Dict
+  , sigf          :: !(Double -> Double)          -- ^ (memorized) sigmoid function
+  , logf          :: !(Double -> Double)          -- ^ (memorized) log function
+  , noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
+  , wordVecRef    :: WordVecRef                   -- ^ word vectors
+  , tokenCountRef :: !(MVar Word)                 -- ^ the number of tokens consumed
   }
 
+-- |
 data Model = Model
   { localTokens  :: !Word
   , learningRate :: !Double
@@ -77,8 +79,8 @@ computeHidden wsRef input = do
     getWI w = wI . lookE w
 {-# INLINE computeHidden #-}
 
-type RandomIO   = IO
-type MVarIO   = IO
+type RandomIO = IO
+type MVarIO = IO
 
 -- |
 -- The function that update model based on formulas of the objective function and binary label.
@@ -107,8 +109,8 @@ binaryLogistic lr label input = do
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
-negativeSampling :: Double   -- ^ learning rate
-                 -> T.Text   -- ^ a updating target word
+negativeSampling :: Double -- ^ learning rate
+                 -> T.Text -- ^ a updating target word
                  -> ReaderT Params (StateT Model MVarIO) ()
 negativeSampling lr input = do
   genRand  <- lift $ gets gRand
@@ -197,7 +199,7 @@ genSigmoid tableSize maxValue x
 
     mapIndexToTableX :: Double -> Double
     mapIndexToTableX idx = (idx * 2.0 * maxValue) / doubledTableSize - maxValue
-    lsigmoid lx = 1.0 / (1.0 + exp (-lx))
+    lsigmoid lx = 1.0 / (1.0 + exp (negate lx))
 
 -- | generate memorized log function.
 genLog :: Word -> (Double -> Double)

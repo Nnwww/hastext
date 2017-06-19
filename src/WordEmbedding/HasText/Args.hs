@@ -9,7 +9,7 @@ module WordEmbedding.HasText.Args
   , learningDefault
   , saveArgs
   , readArgs
-  , checkPath
+  , validOpts
   ) where
 
 import qualified Data.ByteString  as BS
@@ -86,11 +86,11 @@ saveArgs savePath args = BS.writeFile savePath $ ST.encode args
 readArgs :: FilePath -> IO Args
 readArgs readPath = ST.decodeIO =<< BS.readFile readPath
 
-checkPath :: Args -> IO Bool
-checkPath (_, o) = do
-  existIFile <- SD.doesFileExist $ input o
-  existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ output o
-  return $ existIFile && existODir
-
-checkOParams :: Args -> Bool
-checkOParams (_, o) = 0 /= threads o
+validOpts :: Args -> IO Bool
+validOpts (_, o) = fmap (&& nonZeroThread) existPaths
+  where
+    nonZeroThread = 0 /= threads o
+    existPaths = do
+      existIFile <- SD.doesFileExist $ input o
+      existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ output o
+      return $ existIFile && existODir
