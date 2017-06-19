@@ -204,7 +204,7 @@ genSigmoid tableSize maxValue x
 -- | generate memorized log function.
 genLog :: Word -> (Double -> Double)
 genLog tableSize x
-  | 1.0 < x   = 0.0
+  | 1.0 < x   = 0.0 -- Because this function is passed probabilities.
   | otherwise = logTable AU.! mapInputToIndex x
   where
     doubledTableSize = fromIntegral tableSize :: Double
