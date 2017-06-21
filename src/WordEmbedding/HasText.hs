@@ -132,27 +132,26 @@ train args@(_, opt) = do
       validOpts <- HA.validOpts args
       unless validOpts $ throwString "Error: Invalid Arguments."
 
--- ^ words that do not exist in trained corpora when execute mostSimilar.
-data AbsenceOfWords = AbsenceOfWords {absPosW :: [T.Text], negPosW :: [T.Text]}
+data ErrMostSim = EmptyInput
+                | AbsenceOfWords {absPosW :: [T.Text], negPosW :: [T.Text]}
+                -- ^ words that do not exist in trained corpora when execute mostSimilar.
 
+-- TODO: I would typing input lists using liquidhaskell.
+-- | Get a most similar word list. Note that the result list is a delayed version of the entire dictionary.
 mostSimilar :: Word2Vec
             -> [T.Text] -- ^ positive words
             -> [T.Text] -- ^ negative words
-            -> Either AbsenceOfWords [(T.Text, Double)]
+            -> Either ErrMostSim [(T.Text, Double)]
 mostSimilar Word2Vec{_wordVec = wv} positives negatives
   | length absPoss /= 0 || length absNegs /= 0 = Left $ AbsenceOfWords absPoss absNegs
   | otherwise = Right . V.toList $ cosSims
---  | otherwise = Right . V.toList . runST $ do
---      cosSimVecs <- V.unsafeThaw . V.map (second $ cosSim . HM.wI) . V.fromList $ HS.toList wv
---      VA.sortBy (\l r -> compare (snd l) (snd r)) cosSimVecs
---      V.unsafeFreeze cosSimVecs
   where
     absPoss = absentWords positives
     absNegs = absentWords negatives
     absentWords = filter (not . flip HS.member wv)
     cosSims = runST $ do
       cosSimVecs <- V.unsafeThaw . V.map (second $ cosSim . HM.wI) . V.fromList $ HS.toList wv
-      VA.sortBy (\l r -> compare (snd l) (snd r)) cosSimVecs
+      VA.sortBy (flip $ comparing snd) cosSimVecs
       V.unsafeFreeze cosSimVecs
     cosSim x = LA.dot unitedMean (unitVector x)
     unitedMean = unitVector mean
