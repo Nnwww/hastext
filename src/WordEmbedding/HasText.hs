@@ -1,19 +1,25 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module WordEmbedding.HasText where
 
-import qualified Data.HashMap.Strict         as HS
-import qualified Data.Text                   as T
-import qualified Data.Vector                 as V
-import qualified Numeric.LinearAlgebra       as LA
-import qualified System.IO                   as SI
-import qualified System.Random.MWC           as RM
-import qualified WordEmbedding.HasText.Args  as HA
-import qualified WordEmbedding.HasText.Dict  as HD
-import qualified WordEmbedding.HasText.Model as HM
+import           Data.Ord
+import           Data.Bifunctor
+import qualified Data.HashMap.Strict              as HS
+import qualified Data.Text                        as T
+import qualified Data.Vector                      as V
+import qualified Data.Vector.Algorithms.Intro     as VA
+import qualified Numeric.LinearAlgebra            as LA
+import qualified System.IO                        as SI
+import qualified System.Random.MWC                as RM
+import qualified System.Random.MWC.CondensedTable as RMC
+import qualified WordEmbedding.HasText.Args       as HA
+import qualified WordEmbedding.HasText.Dict       as HD
+import qualified WordEmbedding.HasText.Model      as HM
 
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Exception.Safe
 import           Control.Monad
+import           Control.Monad.ST
 import           Control.Monad.Reader
 import           Control.Monad.State
 
@@ -58,7 +64,7 @@ trainThread params@HM.Params{HM.args = (method, options), HM.dict = dict, HM.tok
           else do
           let progress = tokenCount / (epoch * ntokens)
               newLR    = oldLR * (1.0 - progress) :: Double
-          line <- HD.getLineFromLoopingHandle h dict gRand
+          line <- HD.getLineLoop h dict gRand
           let learning = chooseMethod method newLR $ V.map HD.eword line
           newModel   <- flip execStateT oldModel $ runReaderT learning params
           newLocalTC <- bufferTokenCount $ lt + fromIntegral (V.length line)
@@ -79,14 +85,25 @@ trainThread params@HM.Params{HM.args = (method, options), HM.dict = dict, HM.tok
          modifyMVar_ tcRef (return . (+ localTokenCount))
          return 0
 
-train :: HA.Args -> IO HM.Params
-train largs@(_, opt) = do
+-- | The result of Word2Vec method.
+-- In contrast to Model type, it is more preferable that each label of this record is lazy evoluted.
+data Word2Vec = Word2Vec
+  { _args          :: HA.Args
+  , _dict          :: HD.Dict
+  , _sigf          :: Double -> Double             -- ^ (memorized) sigmoid function
+  , _logf          :: Double -> Double             -- ^ (memorized) log function
+  , _noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
+  , _wordVec       :: HM.WordVec                   -- ^ word vectors
+  }
+
+train :: HA.Args -> IO Word2Vec
+train args@(_, opt) = do
   check
-  dict  <- initDict
+  dict <- initDict
   wvRef <- initWVRef dict
   tcRef <- initTokenCountRef
   let params = HM.Params
-        { HM.args          = largs
+        { HM.args          = args
         , HM.dict          = dict
         , HM.sigf          = HM.genSigmoid 512 8
         , HM.logf          = HM.genLog 512
@@ -94,18 +111,58 @@ train largs@(_, opt) = do
         , HM.wordVecRef    = wvRef
         , HM.tokenCountRef = tcRef
         }
-  x : _ <- mapConcurrently (trainThread params) [0.. fromIntegral $ HA.threads opt]
-  return x
+  resultParams : _ <- mapConcurrently (trainThread params) [0.. fromIntegral $ HA.threads opt]
+  resultWordVec <- readMVar $ HM.wordVecRef resultParams
+  return Word2Vec
+    { _args      = HM.args resultParams
+    , _dict      = HM.dict resultParams
+    , _sigf      = HM.sigf resultParams
+    , _logf      = HM.logf resultParams
+    , _noiseDist = HM.noiseDist resultParams
+    , _wordVec   = resultWordVec
+    }
   where
     initTokenCountRef = newMVar 0
     initWVRef = newMVar . HS.map initW . HD.entries
     initW _   = HM.Weights{HM.wI = makeVec, HM.wO = makeVec}
     makeVec   = LA.fromList $ replicate dim (0.0 :: Double)
     dim       = fromIntegral $ HA.dim opt
-    initDict  = HD.initFromFile largs
+    initDict  = HD.initFromFile args
     check = do
-      validOpts <- HA.validOpts largs
+      validOpts <- HA.validOpts args
       unless validOpts $ throwString "Error: Invalid Arguments."
+
+-- ^ words that do not exist in trained corpora when execute mostSimilar.
+data AbsenceOfWords = AbsenceOfWords {absPosW :: [T.Text], negPosW :: [T.Text]}
+
+mostSimilar :: Word2Vec
+            -> [T.Text] -- ^ positive words
+            -> [T.Text] -- ^ negative words
+            -> Either AbsenceOfWords [(T.Text, Double)]
+mostSimilar Word2Vec{_wordVec = wv} positives negatives
+  | length absPoss /= 0 || length absNegs /= 0 = Left $ AbsenceOfWords absPoss absNegs
+  | otherwise = Right . V.toList $ cosSims
+--  | otherwise = Right . V.toList . runST $ do
+--      cosSimVecs <- V.unsafeThaw . V.map (second $ cosSim . HM.wI) . V.fromList $ HS.toList wv
+--      VA.sortBy (\l r -> compare (snd l) (snd r)) cosSimVecs
+--      V.unsafeFreeze cosSimVecs
+  where
+    absPoss = absentWords positives
+    absNegs = absentWords negatives
+    absentWords = filter (not . flip HS.member wv)
+    cosSims = runST $ do
+      cosSimVecs <- V.unsafeThaw . V.map (second $ cosSim . HM.wI) . V.fromList $ HS.toList wv
+      VA.sortBy (\l r -> compare (snd l) (snd r)) cosSimVecs
+      V.unsafeFreeze cosSimVecs
+    cosSim x = LA.dot unitedMean (unitVector x)
+    unitedMean = unitVector mean
+    unitVector (v :: LA.Vector Double) = (1 / LA.norm_2 v) `LA.scale` v
+    mean = LA.scale (1 / inputLength) . foldr1 LA.add $ (map getAndPosScale positives) ++ (map getAndNegScale negatives)
+    inputLength = fromIntegral $ (length positives) + (length negatives)
+    getAndPosScale = getVec
+    getAndNegScale = LA.scale (-1) . getVec
+    getVec = HM.wI . (wv HS.!)
+
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)

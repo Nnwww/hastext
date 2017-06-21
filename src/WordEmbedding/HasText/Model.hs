@@ -1,3 +1,4 @@
+{-# LANGUAGE StrictData #-}
 module WordEmbedding.HasText.Model where
 
 import qualified WordEmbedding.HasText.Args       as HA
@@ -22,23 +23,23 @@ import           Control.Monad.State
 
 -- | A parameter throughout learning. Params should be thread-safe because it is shared among threads.
 data Params = Params
-  { args          :: !HA.Args
-  , dict          :: !HD.Dict
-  , sigf          :: !(Double -> Double)          -- ^ (memorized) sigmoid function
-  , logf          :: !(Double -> Double)          -- ^ (memorized) log function
+  { args          :: HA.Args
+  , dict          :: HD.Dict
+  , sigf          :: Double -> Double             -- ^ (memorized) sigmoid function
+  , logf          :: Double -> Double             -- ^ (memorized) log function
   , noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
   , wordVecRef    :: WordVecRef                   -- ^ word vectors
-  , tokenCountRef :: !(MVar Word)                 -- ^ the number of tokens consumed
+  , tokenCountRef :: MVar Word                    -- ^ the number of tokens consumed
   }
 
 -- |
 data Model = Model
-  { localTokens  :: !Word
-  , learningRate :: !Double
-  , loss         :: !Double
-  , hiddenL      ::  LA.Vector Double
-  , gradVec      ::  LA.Vector Double
-  , gRand        :: !RM.GenIO
+  { localTokens  :: Word
+  , learningRate :: Double
+  , loss         :: Double
+  , hiddenL      :: LA.Vector Double
+  , gradVec      :: LA.Vector Double
+  , gRand        :: RM.GenIO
   }
 
 type WordVec    = HD.TMap Weights

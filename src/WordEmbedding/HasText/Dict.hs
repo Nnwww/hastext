@@ -87,10 +87,11 @@ discard diss gen word =
       randProb <- RM.uniform gen
       return $ randProb > disProb
 
-getLineFromLoopingHandle :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
-getLineFromLoopingHandle h dict rand = do
+getLineLoop :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
+getLineLoop h dict rand = do
   size <- SI.hFileSize h
-  when (size == 0) $ SI.hSeek h SI.AbsoluteSeek 0
+  progress <- SI.hTell h
+  when (size == progress) $ SI.hSeek h SI.AbsoluteSeek 0
   unsafeGetLine h dict rand
 
 unsafeGetLine :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
