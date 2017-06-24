@@ -25,6 +25,7 @@ import           Control.Monad.State
 data Params = Params
   { args          :: HA.Args
   , dict          :: HD.Dict
+  , lr            :: Double
   , sigf          :: Double -> Double             -- ^ (memorized) sigmoid function
   , logf          :: Double -> Double             -- ^ (memorized) log function
   , noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
@@ -34,9 +35,7 @@ data Params = Params
 
 -- |
 data Model = Model
-  { localTokens  :: Word
-  , learningRate :: Double
-  , loss         :: Double
+  { loss         :: Double
   , hiddenL      :: LA.Vector Double
   , gradVec      :: LA.Vector Double
   , gRand        :: RM.GenIO
@@ -53,9 +52,7 @@ data Weights = Weights
 
 initModel :: Int -> RM.GenIO -> Model
 initModel dim gR = Model
-  { localTokens = 0
-  , learningRate = 0.0
-  , loss = 0.0
+  { loss = 0.0
   , hiddenL = zeros
   , gradVec = zeros
   , gRand = gR
@@ -85,17 +82,16 @@ type MVarIO = IO
 
 -- |
 -- The function that update model based on formulas of the objective function and binary label.
-binaryLogistic :: Double -- ^ learning late
-               -> Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
+binaryLogistic :: Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
                -> ReaderT Params (StateT Model MVarIO) ()
-binaryLogistic lr label input = do
-  Params{wordVecRef = wvRef, sigf = sigt, logf = logt}     <- ask
+binaryLogistic label input = do
+  Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt} <- ask
   model@Model{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
   ws <- liftIO $ takeMVar wvRef
   let wo         = wO   $ lookE ws input
       score      = sigt $ LA.dot wo hidden
-      alpha      = lr * (boolToNum label - score)
+      alpha      = lr' * (boolToNum label - score)
       newWO      = wo + LA.scale alpha hidden
       updateWO w = Just $ w{wO = newWO}
       newWs      = HS.update updateWO input ws
@@ -110,42 +106,27 @@ binaryLogistic lr label input = do
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
-negativeSampling :: Double -- ^ learning rate
-                 -> T.Text -- ^ a updating target word
+negativeSampling :: T.Text -- ^ a updating target word
                  -> ReaderT Params (StateT Model MVarIO) ()
-negativeSampling lr input = do
-  genRand  <- lift $ gets gRand
-  nDst <- asks noiseDist
-  negs <- asks $ HA.negatives . snd . args
-  join . liftIO . foldM (sampleNegative nDst genRand) samplePositive $ [0 .. negs]
-  where
-    binLog = binaryLogistic lr
-    samplePositive = binLog True input
-    sampleNegative :: RMC.CondensedTableV HD.Entry -> RM.GenIO
-                   -> ReaderT Params (StateT Model MVarIO) () -> Word
-                   -> RandomIO (ReaderT Params (StateT Model MVarIO) ())
-    sampleNegative noise rand acc _ = do
-      HD.Entry{HD.eword = negWord} <- getNegative noise rand input
-      return (acc >> binLog False negWord)
-
--- update :: Model -> V.Vector T.Text -> T.Text -> Double -> IO Model
--- update model inputs updTarget lr = do
---   newH <- computeHidden (wordVecRef model) inputs
---   m <- negativeSampling model{hiddenL = newH} lr updTarget
---   let wIPlusGrad ws k = HS.update (\w -> Just w{wI = (+ gradVec m) $ wI w}) k ws
---   let wvRef = wordVecRef m
---   ws <- takeMVar wvRef
---   putMVar wvRef $ V.foldl' wIPlusGrad ws inputs
---   return $ m{wordVecRef = wvRef}
+negativeSampling input = do
+  genRand <- lift $ gets gRand
+  nDist   <- asks noiseDist
+  negs    <- asks $ HA.negatives . snd . args
+  join . liftIO . foldM (sampleNegative nDist genRand) samplePositive $ [0 .. negs]
+    where
+      samplePositive = binaryLogistic True input
+      sampleNegative noise rand acc _ = do
+        HD.Entry{HD.eword = negWord} <- getNegative noise rand input
+        return (acc >> binaryLogistic False negWord)
 
 -- |
 -- The function that update a model. This function is a entry point of Model module.
-update :: V.Vector T.Text -> T.Text -> Double -> ReaderT Params (StateT Model MVarIO) ()
-update inputs updTarget lr = do
+update :: V.Vector T.Text -> T.Text -> ReaderT Params (StateT Model MVarIO) ()
+update inputs updTarget = do
   wvRef <- asks wordVecRef
   newHidden <- liftIO $ computeHidden wvRef inputs
   lift . modify $ updateHidden newHidden
-  negativeSampling lr updTarget
+  negativeSampling updTarget
   grad <- lift $ gets gradVec
   liftIO . modifyMVar_ wvRef $ return . updateWordVecs grad
   where
