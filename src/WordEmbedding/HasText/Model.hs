@@ -33,8 +33,8 @@ data Params = Params
   , tokenCountRef :: MVar Word                    -- ^ the number of tokens consumed
   }
 
--- |
-data Model = Model
+-- | A parameter per thread.
+data LParams = LParams
   { loss         :: Double
   , hiddenL      :: LA.Vector Double
   , gradVec      :: LA.Vector Double
@@ -50,8 +50,8 @@ data Weights = Weights
   , wO :: LA.Vector Double -- ^ output word vector
   }
 
-initModel :: Int -> RM.GenIO -> Model
-initModel dim gR = Model
+initLParams :: Int -> RM.GenIO -> LParams
+initLParams dim gR = LParams
   { loss = 0.0
   , hiddenL = zeros
   , gradVec = zeros
@@ -59,7 +59,7 @@ initModel dim gR = Model
   }
   where
     zeros = LA.fromList $ replicate dim 0.0
-{-# INLINE initModel #-}
+{-# INLINE initLParams #-}
 
 
 computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
@@ -79,10 +79,10 @@ type MVarIO = IO
 -- The function that update model based on formulas of the objective function and binary label.
 binaryLogistic :: Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
-               -> ReaderT Params (StateT Model MVarIO) ()
+               -> ReaderT Params (StateT LParams MVarIO) ()
 binaryLogistic label input = do
   Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt} <- ask
-  model@Model{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
+  model@LParams{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
   ws <- liftIO $ takeMVar wvRef
   let wo         = wO   $ ws HS.! input
       score      = sigt $ LA.dot wo hidden
@@ -102,7 +102,7 @@ binaryLogistic label input = do
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
 negativeSampling :: T.Text -- ^ a updating target word
-                 -> ReaderT Params (StateT Model MVarIO) ()
+                 -> ReaderT Params (StateT LParams MVarIO) ()
 negativeSampling input = do
   genRand <- lift $ gets gRand
   nDist   <- asks noiseDist
@@ -115,8 +115,8 @@ negativeSampling input = do
         return (acc >> binaryLogistic False negWord)
 
 -- |
--- The function that update a model. This function is a entry point of Model module.
-update :: V.Vector T.Text -> T.Text -> ReaderT Params (StateT Model MVarIO) ()
+-- The function that update a model. This function is a entry point of LParams module.
+update :: V.Vector T.Text -> T.Text -> ReaderT Params (StateT LParams MVarIO) ()
 update inputs updTarget = do
   wvRef <- asks wordVecRef
   newHidden <- liftIO $ computeHidden wvRef inputs

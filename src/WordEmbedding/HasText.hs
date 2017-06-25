@@ -24,7 +24,7 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 
 -- The function that return a range of the dynamic window.
-unsafeWindowRange :: HA.Args -> HM.Model -> V.Vector T.Text
+unsafeWindowRange :: HA.Args -> HM.LParams -> V.Vector T.Text
                   -> Int -- ^ The central index of a window. Note that no boundary checks.
                   -> IO (V.Vector T.Text)
 unsafeWindowRange args model line targetIdx = do
@@ -36,7 +36,7 @@ unsafeWindowRange args model line targetIdx = do
   where
     negs = fromIntegral . HA.negatives . snd $ args
 
-skipGram :: V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
+skipGram :: V.Vector T.Text -> ReaderT HM.Params (StateT HM.LParams HM.MVarIO) ()
 skipGram line = forM_ [0..V.length line - 1] $ \idx -> do
   args <- asks HM.args
   model <- lift get
@@ -44,7 +44,7 @@ skipGram line = forM_ [0..V.length line - 1] $ \idx -> do
   where
     learn input target = HM.update (V.singleton input) target
 
-cbow :: V.Vector T.Text -> ReaderT HM.Params (StateT HM.Model HM.MVarIO) ()
+cbow :: V.Vector T.Text -> ReaderT HM.Params (StateT HM.LParams HM.MVarIO) ()
 cbow line = forM_ [0..V.length line - 1] $ \idx -> do
   args <- asks HM.args
   model <- lift get
@@ -58,7 +58,7 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
   h     <- SI.openFile (HA.input opt) SI.ReadMode
   size  <- SI.hFileSize h
   SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ HA.threads opt)
-  let trainUntilCountUpTokens localTC oldLR oldModel = do
+  let trainUntilCountUpTokens localTC oldLR oldLParams = do
         tokenCount <- readMVar tcRef
         if tokens < tokenCount
           then SI.hClose h
@@ -67,10 +67,10 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
               newLR    = oldLR * (1.0 - progress)
           line <- HD.getLineLoop h dict gRand
           let learning = method $ V.map HD.eword line
-          newModel   <- flip execStateT oldModel $ runReaderT learning params{HM.lr = newLR}
+          newLParams   <- flip execStateT oldLParams $ runReaderT learning params{HM.lr = newLR}
           newLocalTC <- bufferTokenCount $ localTC + fromIntegral (V.length line)
-          trainUntilCountUpTokens newLocalTC newLR newModel
-  trainUntilCountUpTokens 0 (HA.lr opt) $ HM.initModel (fromIntegral $ HA.dim opt) gRand
+          trainUntilCountUpTokens newLocalTC newLR newLParams
+  trainUntilCountUpTokens 0 (HA.lr opt) $ HM.initLParams (fromIntegral $ HA.dim opt) gRand
   putStrLn $ "Finish thread " ++ show threadNo
   return params
   where
@@ -85,7 +85,7 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
          return 0
 
 -- | The result of Word2Vec method.
--- In contrast to Model type, it is more preferable that each label of this record is lazy evoluted.
+-- In contrast to LParams type, it is more preferable that each label of this record is lazy evoluted.
 data Word2Vec = Word2Vec
   { _args          :: HA.Args
   , _dict          :: HD.Dict
