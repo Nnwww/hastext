@@ -61,12 +61,6 @@ initModel dim gR = Model
     zeros = LA.fromList $ replicate dim 0.0
 {-# INLINE initModel #-}
 
-lookE hs k = hs HS.! k
-{-# INLINE lookE #-}
-
-inverse :: (Integral i, Fractional r) => i -> r
-inverse d = 1.0 / fromIntegral d
-{-# INLINE inverse #-}
 
 computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
 computeHidden wsRef input = do
@@ -74,7 +68,8 @@ computeHidden wsRef input = do
   let sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
   return $ (inverse . V.length $ input) `LA.scale` sumVectors
   where
-    getWI w = wI . lookE w
+    getWI w k = wI $ w HS.! k
+    inverse d = 1.0 / fromIntegral d
 {-# INLINE computeHidden #-}
 
 type RandomIO = IO
@@ -89,7 +84,7 @@ binaryLogistic label input = do
   Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt} <- ask
   model@Model{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
   ws <- liftIO $ takeMVar wvRef
-  let wo         = wO   $ lookE ws input
+  let wo         = wO   $ ws HS.! input
       score      = sigt $ LA.dot wo hidden
       alpha      = lr' * (boolToNum label - score)
       newWO      = wo + LA.scale alpha hidden
@@ -133,6 +128,7 @@ update inputs updTarget = do
     updateHidden h m = m{hiddenL = h}
     updateWordVecs grad ws = V.foldl' (wIPlusGrad grad) ws inputs
     wIPlusGrad grad ws k = HS.update (\w -> Just w{wI = grad + wI w}) k ws
+{-# INLINE update #-}
 
 getNegative :: RMC.CondensedTableV HD.Entry -> RM.GenIO -> T.Text -> RandomIO HD.Entry
 getNegative noiseTable rand input = tryLoop
@@ -140,7 +136,6 @@ getNegative noiseTable rand input = tryLoop
     tryLoop = do
       ent <- RMC.genFromTable noiseTable rand
       if HD.eword ent == input then tryLoop else return ent
-{-# INLINE getNegative #-}
 
 genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
                      -> HD.TMap HD.Entry             -- ^ vocabulary set for constructing a noise distribution table
@@ -168,7 +163,6 @@ genSigmoid tableSize maxValue x
   | x < -maxValue = 0.0
   | maxValue < x  = 1.0
   | otherwise     = sigmoidTable AU.! mapInputToIndex x
-  -- TODO: using closures will be less efficieny than inlined functions. Therefore there's room for consideration.
   where
     doubledTableSize = fromIntegral tableSize :: Double
 
@@ -182,6 +176,7 @@ genSigmoid tableSize maxValue x
     mapIndexToTableX :: Double -> Double
     mapIndexToTableX idx = (idx * 2.0 * maxValue) / doubledTableSize - maxValue
     lsigmoid lx = 1.0 / (1.0 + exp (negate lx))
+{-# INLINE genSigmoid #-}
 
 -- | generate memorized log function.
 genLog :: Word -> (Double -> Double)
@@ -198,3 +193,4 @@ genLog tableSize x
     logTable = AU.listArray (0, tableSize)
       [Prelude.log ((i + 1e-5) / doubledTableSize) | i <- [0.0 .. doubledTableSize]]
       -- I add 1e-5 to x due to avoid computing log 0.
+{-# INLINE genLog #-}
