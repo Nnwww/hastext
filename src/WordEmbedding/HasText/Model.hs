@@ -1,8 +1,13 @@
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE IncoherentInstances #-}
+
 module WordEmbedding.HasText.Model where
 
 import qualified WordEmbedding.HasText.Args       as HA
 import qualified WordEmbedding.HasText.Dict       as HD
+import qualified WordEmbedding.HasText.Type
 
 import qualified Data.Array.Unboxed               as AU
 import qualified Data.Bifunctor                   as DB
@@ -12,9 +17,13 @@ import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
 
 import qualified Numeric.LinearAlgebra            as LA
+import qualified Numeric.LinearAlgebra.Devel      as LAD
 
 import qualified System.Random.MWC                as RM
 import qualified System.Random.MWC.CondensedTable as RMC
+
+import qualified Data.Binary as B
+import           GHC.Generics (Generic)
 
 import           Control.Concurrent
 import           Control.Monad
@@ -48,7 +57,9 @@ type WordVecRef = MVar WordVec
 data Weights = Weights
   { wI :: LA.Vector Double -- ^ input word vector
   , wO :: LA.Vector Double -- ^ output word vector
-  }
+  } deriving (Generic)
+
+instance B.Binary Weights
 
 initLParams :: Int -> RM.GenIO -> LParams
 initLParams dim gR = LParams
@@ -60,7 +71,6 @@ initLParams dim gR = LParams
   where
     zeros = LA.fromList $ replicate dim 0.0
 {-# INLINE initLParams #-}
-
 
 computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
 computeHidden wsRef input = do
@@ -80,21 +90,21 @@ type MVarIO = IO
 binaryLogistic :: Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
                -> ReaderT Params (StateT LParams MVarIO) ()
-binaryLogistic label input = do
-  Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt} <- ask
-  model@LParams{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
-  ws <- liftIO $ takeMVar wvRef
-  let wo         = wO   $ ws HS.! input
-      score      = sigt $ LA.dot wo hidden
-      alpha      = lr' * (boolToNum label - score)
-      newWO      = wo + LA.scale alpha hidden
-      updateWO w = Just $ w{wO = newWO}
-      newWs      = HS.update updateWO input ws
-  liftIO $ putMVar wvRef newWs
-  let minusLog   = if label then negate $ logt score else negate $ logt (1.0 - score)
-      newGrad    = grad + LA.scale alpha wo
-      newLoss    = minusLog + ls
-  lift . put $ model{loss = newLoss, gradVec = newGrad}
+binaryLogistic !label !input = do
+  !Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt} <- ask
+  !model@LParams{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
+  ws <- liftIO $! takeMVar wvRef
+  let !wo         = wO (ws HS.! input)
+      !score      = sigt (LA.dot wo hidden)
+      !alpha      = lr' * (boolToNum label - score)
+      !newWO      = wo + LA.scale alpha hidden
+      updateWO w  = Just w{wO = newWO}
+      !newWs      = HS.update updateWO input ws
+  liftIO $! putMVar wvRef newWs
+  let !minusLog   = negate . logt $! if label then score else 1.0 - score
+      !newGrad    = grad + LA.scale alpha wo
+      !newLoss    = minusLog + ls
+  lift . put $! model{loss = newLoss, gradVec = newGrad}
   where
     boolToNum = fromIntegral . fromEnum
 {-# INLINE binaryLogistic #-}
@@ -113,6 +123,7 @@ negativeSampling input = do
       sampleNegative noise rand acc _ = do
         HD.Entry{HD.eword = negWord} <- getNegative noise rand input
         return (acc >> binaryLogistic False negWord)
+{-# INLINE negativeSampling #-}
 
 -- |
 -- The function that update a model. This function is a entry point of LParams module.
@@ -135,7 +146,8 @@ getNegative noiseTable rand input = tryLoop
   where
     tryLoop = do
       ent <- RMC.genFromTable noiseTable rand
-      if HD.eword ent == input then tryLoop else return ent
+      if HD.eword ent /= input then return ent else tryLoop
+{-# INLINE getNegative #-}
 
 genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
                      -> HD.TMap HD.Entry             -- ^ vocabulary set for constructing a noise distribution table

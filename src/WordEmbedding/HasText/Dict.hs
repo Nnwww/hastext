@@ -1,23 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData        #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module WordEmbedding.HasText.Dict where
 
 import           WordEmbedding.HasText.Args
+import           WordEmbedding.HasText.Type
 
 import           System.IO                  as SI
 import qualified System.Random.MWC          as RM
 
-import qualified Data.ByteString            as BS
 import qualified Data.Char                  as C
 import           Data.Conduit
 import qualified Data.Conduit.Combinators   as CC
 import qualified Data.HashMap.Strict        as HS
-import qualified Data.Store                 as S
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
-import           TH.Derive                  (Deriving, derive)
+
+import           Data.Binary
+import           GHC.Generics (Generic)
 
 import           Control.Monad
 
@@ -28,37 +29,22 @@ data Entry = Entry
   , count :: Word
   -- , etype    :: EntryType
   -- , subwords :: ~(Vec T.Text)
-  }
+  } deriving (Generic)
 
-data EntryType = EWord | ELabel
+data EntryType = EWord | ELabel deriving (Generic)
 
 data Dict = Dict
   { entries  :: TMap Entry
   , discards :: TMap Double
   , ntokens  :: Word
-  }
+  } deriving (Generic)
 
 maxVocabSize = 30000000 :: Int
 maxLineSize  =     1024 :: Int
 
--- deriving a binary serialization.
-$($(derive [d|
-    instance Deriving (S.Store Entry)
-    |]))
-
-$($(derive [d|
-    instance Deriving (S.Store EntryType)
-    |]))
-
-$($(derive [d|
-    instance Deriving (S.Store Dict)
-    |]))
-
-saveDict :: FilePath -> Dict -> IO ()
-saveDict savePath dict = BS.writeFile savePath $ S.encode dict
-
-loadDict :: FilePath -> IO Dict
-loadDict readPath = S.decodeIO =<< BS.readFile readPath
+instance Binary Entry
+instance Binary EntryType
+instance Binary Dict
 
 initDiscards :: Double -> TMap Entry -> Word -> TMap Double
 initDiscards tsub ents tks = HS.map calcDiscard ents

@@ -1,22 +1,19 @@
-{-# LANGUAGE StrictData      #-}
-{-# LANGUAGE TemplateHaskell #-}
-
+{-# LANGUAGE StrictData    #-}
+{-# LANGUAGE DeriveGeneric #-}
 module WordEmbedding.HasText.Args
   ( Args
   , Method(..)
   , Options(..)
   , Loss(..)
   , learningDefault
-  , saveArgs
-  , readArgs
   , validOpts
   ) where
 
-import qualified Data.ByteString  as BS
-import qualified Data.Store       as ST
 import qualified System.Directory as SD
 import qualified System.FilePath  as SF
-import           TH.Derive        (Deriving, derive)
+
+import qualified Data.Binary      as B
+import           GHC.Generics     (Generic)
 
 
 -- | Arguments necessary to learn
@@ -26,7 +23,7 @@ type Args = (Method, Options)
 data Method
   = Cbow
   | Skipgram
-  deriving Show
+  deriving (Show, Generic)
 
 -- | Global options to learn
 data Options = Options
@@ -43,10 +40,10 @@ data Options = Options
   , tSub           :: Double   -- ^ sub-sampling threshold
   , threads        :: Word     -- ^ number of threads
   , verbose        :: Word     -- ^ verbosity level
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 -- | Loss functions
-data Loss = Negative | Hierarchical deriving (Show, Read)
+data Loss = Negative | Hierarchical deriving (Show, Read, Generic)
 
 learningDefault :: Options
 learningDefault = Options
@@ -65,26 +62,9 @@ learningDefault = Options
   , verbose        = 1
   }
 
--- derive Store instances at compile time
-$($(derive [d|
-    instance Deriving (ST.Store Method)
-    |]))
-
-$($(derive [d|
-    instance Deriving (ST.Store Options)
-    |]))
-
-$($(derive [d|
-    instance Deriving (ST.Store Loss)
-    |]))
-
--- | Save Args
-saveArgs :: FilePath -> Args -> IO ()
-saveArgs savePath args = BS.writeFile savePath $ ST.encode args
-
--- | Read Args
-readArgs :: FilePath -> IO Args
-readArgs readPath = ST.decodeIO =<< BS.readFile readPath
+instance B.Binary Method
+instance B.Binary Options
+instance B.Binary Loss
 
 validOpts :: Args -> IO Bool
 validOpts (_, o) = fmap (&& nonZeroThread) existPaths

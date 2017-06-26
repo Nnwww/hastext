@@ -3,6 +3,7 @@ module WordEmbedding.HasText where
 
 import           Data.Ord
 import           Data.Bifunctor
+import qualified Data.Binary                      as B
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
@@ -22,6 +23,32 @@ import           Control.Monad
 import           Control.Monad.ST
 import           Control.Monad.Reader
 import           Control.Monad.State
+
+-- | The result of Word2Vec method.
+-- In contrast to LParams type, it is more preferable that each label of this record is lazy evoluted.
+data Word2Vec = Word2Vec
+  { _args          :: HA.Args
+  , _dict          :: HD.Dict
+  , _sigf          :: Double -> Double             -- ^ (memorized) sigmoid function
+  , _logf          :: Double -> Double             -- ^ (memorized) log function
+  , _noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
+  , _wordVec       :: HM.WordVec                   -- ^ word vectors
+  }
+
+instance B.Binary Word2Vec where
+  get = do
+    a <- B.get
+    d <- B.get
+    w <- B.get
+    return Word2Vec
+      { _args      = a
+      , _dict      = d
+      , _sigf      = HM.genSigmoid 512 8
+      , _logf      = HM.genLog 512
+      , _noiseDist = HM.genNoiseDistribution 0.75 $ HD.entries d
+      , _wordVec   = w
+      }
+  put Word2Vec{_args = a, _dict = d, _wordVec = w} = B.put a >> B.put d >> B.put w
 
 -- The function that return a range of the dynamic window.
 unsafeWindowRange :: HA.Args -> HM.LParams -> V.Vector T.Text
@@ -84,21 +111,10 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
          modifyMVar_ tcRef (return . (+ localTokenCount))
          return 0
 
--- | The result of Word2Vec method.
--- In contrast to LParams type, it is more preferable that each label of this record is lazy evoluted.
-data Word2Vec = Word2Vec
-  { _args          :: HA.Args
-  , _dict          :: HD.Dict
-  , _sigf          :: Double -> Double             -- ^ (memorized) sigmoid function
-  , _logf          :: Double -> Double             -- ^ (memorized) log function
-  , _noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
-  , _wordVec       :: HM.WordVec                   -- ^ word vectors
-  }
-
 train :: HA.Args -> IO Word2Vec
 train args@(_, opt) = do
   check
-  dict <- initDict
+  dict  <- initDict
   wvRef <- initWVRef dict
   tcRef <- initTokenCountRef
   let params = HM.Params
@@ -143,23 +159,25 @@ mostSimilar :: Word2Vec
             -> Either ErrMostSim [(T.Text, Double)]
 mostSimilar Word2Vec{_wordVec = wv} positives negatives
   | length absPoss /= 0 || length absNegs /= 0 = Left $ AbsenceOfWords absPoss absNegs
-  | otherwise = Right . V.toList $ cosSims
+  | otherwise = Right . V.toList $ sortedCosSims
   where
     absPoss = absentWords positives
     absNegs = absentWords negatives
     absentWords = filter (not . flip HS.member wv)
-    cosSims = runST $ do
+    sortedCosSims = runST $ do
       cosSimVecs <- V.unsafeThaw . V.map (second $ cosSim . HM.wI) . V.fromList $ HS.toList wv
       VA.sortBy (flip $ comparing snd) cosSimVecs
       V.unsafeFreeze cosSimVecs
-    cosSim x = LA.dot unitedMean (unitVector x)
-    unitedMean = unitVector mean
-    unitVector (v :: LA.Vector Double) = (1 / LA.norm_2 v) `LA.scale` v
+    cosSim x = LA.dot (unitVector mean) (unitVector x)
+    unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v)  v
     mean = LA.scale (1 / inputLength) . foldr1 LA.add $ (map getAndPosScale positives) ++ (map getAndNegScale negatives)
     inputLength = fromIntegral $ (length positives) + (length negatives)
     getAndPosScale = getVec
     getAndNegScale = LA.scale (-1) . getVec
     getVec = HM.wI . (wv HS.!)
+
+saveCommonFormat :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
+saveCommonFormat w2v = undefined
 
 
 -- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
