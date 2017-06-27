@@ -1,11 +1,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module WordEmbedding.HasText where
 
 import           Data.Ord
 import           Data.Bifunctor
+import           Data.Monoid
 import qualified Data.Binary                      as B
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Text                        as T
+import qualified Data.Text.IO                     as TI
 import qualified Data.Vector                      as V
 import qualified Data.Vector.Algorithms.Intro     as VA
 import qualified Numeric.LinearAlgebra            as LA
@@ -23,6 +27,7 @@ import           Control.Monad
 import           Control.Monad.ST
 import           Control.Monad.Reader
 import           Control.Monad.State
+import           TextShow
 
 -- | The result of Word2Vec method.
 -- In contrast to LParams type, it is more preferable that each label of this record is lazy evoluted.
@@ -169,17 +174,31 @@ mostSimilar Word2Vec{_wordVec = wv} positives negatives
       VA.sortBy (flip $ comparing snd) cosSimVecs
       V.unsafeFreeze cosSimVecs
     cosSim x = LA.dot (unitVector mean) (unitVector x)
-    unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v)  v
+    unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v) v
     mean = LA.scale (1 / inputLength) . foldr1 LA.add $ (map getAndPosScale positives) ++ (map getAndNegScale negatives)
     inputLength = fromIntegral $ (length positives) + (length negatives)
     getAndPosScale = getVec
     getAndNegScale = LA.scale (-1) . getVec
     getVec = HM.wI . (wv HS.!)
 
-saveCommonFormat :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
-saveCommonFormat w2v = undefined
+saveModel :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
+saveModel w@Word2Vec{_args = args} = do
+  saveVector w
+  liftIO $ B.encodeFile (outFilePath <> ".bin") w
+  where
+    outFilePath = HA.output . snd $ args
 
+saveVector :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
+saveVector Word2Vec{_args = args, _dict = dict, _wordVec = wv} =
+  liftIO . SI.withFile (outFilePath <> ".vec") SI.WriteMode $ \h -> do
+    TI.hPutStrLn h $ toText sizeAndDim
+    mapM_ (putVec h) $ HS.toList wv
+  where
+    outFilePath = HA.output . snd $ args
+    sizeAndDim = (showb . HS.size $ HD.entries dict) <> showbSpace <> (showb . HA.dim $ snd args)
+    putVec h (k, HM.Weights{HM.wI = i}) =
+      TI.hPutStrLn h . toText $ (fromText k) <> showbSpace <> (unwordsB . map showb $ LA.toList i)
 
--- TODO: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
+-- todo: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)
 -- also try to compute outsoftmax.

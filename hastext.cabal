@@ -24,10 +24,10 @@ library
                      , bytestring >= 0.10
                      , binary >= 0.8
                      , text >= 1.2
+                     , text-show >= 3.4.1.1
                      , unordered-containers >= 0.2
                      , vector >= 0.11
                      , vector-algorithms >= 0.7
-                     , th-utilities >= 0.2
                      , conduit >= 1.2
                      , conduit-combinators >= 1.1
                      , mwc-random >= 0.13

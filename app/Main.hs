@@ -116,7 +116,4 @@ parseCLI = execParser parser
 main :: IO ()
 main = do
   args <- parseCLI
-  let savePath = output $ snd args
-  saveArgs savePath args
-  reArgs <- readArgs savePath
   return ()

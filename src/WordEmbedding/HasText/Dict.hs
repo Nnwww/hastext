@@ -39,9 +39,6 @@ data Dict = Dict
   , ntokens  :: Word
   } deriving (Generic)
 
-maxVocabSize = 30000000 :: Int
-maxLineSize  =     1024 :: Int
-
 instance Binary Entry
 instance Binary EntryType
 instance Binary Dict
@@ -75,15 +72,15 @@ discard diss gen word =
 
 getLineLoop :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
 getLineLoop h dict rand = do
-  size <- SI.hFileSize h
-  progress <- SI.hTell h
-  when (size == progress) $ SI.hSeek h SI.AbsoluteSeek 0
+  isE <- SI.hIsEOF h
+  when isE $ SI.hSeek h SI.AbsoluteSeek 0
   unsafeGetLine h dict rand
 
 unsafeGetLine :: Handle -> Dict -> RM.GenIO -> IO (V.Vector Entry)
 unsafeGetLine h Dict{entries = ents, discards = diss} rand =
   runConduit $ CC.sourceHandle h
     .| CC.decodeUtf8
+    .| CC.take 1024 -- TODO: move a constant to args
     .| CC.takeWhileE (/= '\n')
     .| CC.splitOnUnboundedE C.isSpace
     .| CC.filterM (discard diss rand)
