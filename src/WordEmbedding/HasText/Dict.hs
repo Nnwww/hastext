@@ -19,8 +19,12 @@ import qualified Data.Vector                as V
 
 import           Data.Binary
 import           GHC.Generics (Generic)
+import           TextShow
+import           TextShow.Generic
 
 import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Exception.Safe
 
 type TMap a = HS.HashMap T.Text a
 
@@ -29,7 +33,7 @@ data Entry = Entry
   , count :: Word
   -- , etype    :: EntryType
   -- , subwords :: ~(Vec T.Text)
-  } deriving (Generic)
+  } deriving (Generic, Show)
 
 data EntryType = EWord | ELabel deriving (Generic)
 
@@ -37,7 +41,7 @@ data Dict = Dict
   { entries  :: TMap Entry
   , discards :: TMap Double
   , ntokens  :: Word
-  } deriving (Generic)
+  } deriving (Generic, Show)
 
 instance Binary Entry
 instance Binary EntryType
@@ -87,16 +91,17 @@ unsafeGetLine h Dict{entries = ents, discards = diss} rand =
     .| CC.map (ents HS.!)
     .| CC.sinkVector
 
-initFromFile :: Args -> IO Dict
+initFromFile  :: (MonadIO m, MonadThrow m) => Args -> m Dict
 initFromFile (_, Options{input = inp, tSub = tsub, minCount = minc}) = do
-  ents <- wordsFromFile addEntries HS.empty inp
+  ents <- liftIO $ wordsFromFile addEntries HS.empty inp
   let newEnts = threshold ents minc
       newTkns = sizeTokens newEnts
       newDiss = initDiscards tsub newEnts newTkns
+  when (newTkns == 0) $ throwString "To read file was success, but the dictionary did't have any remaining tokens after preprocessing. Your input parameters (e.g. minCount, tSub etc.) look again carefully."
   return $ Dict newEnts newDiss newTkns
 
 threshold :: TMap Entry -> Word -> TMap Entry
-threshold ents t = HS.filter (\e -> t > count e) ents
+threshold ents t = HS.filter (\e -> t < count e) ents
     -- Improvable?: if I use lazy IO, it can suppress explosion of memory usage here.
 
 sizeTokens :: TMap Entry -> Word
@@ -105,7 +110,7 @@ sizeTokens = foldr (\e acc -> acc + count e) 0
 addEntries :: TMap Entry -> T.Text -> TMap Entry
 addEntries ents t = HS.alter newEntry t ents
   where
-    newEntry (Just old@Entry{count = c}) = Just old{count = c + 1}
+    newEntry (Just old@Entry{count = c}) = Just old{count = succ c}
     newEntry Nothing                     = Just Entry{eword = t, count = 1}
     -- todo: implement ngram and label functionality
     -- nGrams n = (!! n) . L.transpose . L.map T.inits . T.tails

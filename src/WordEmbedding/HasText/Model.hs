@@ -7,7 +7,6 @@ module WordEmbedding.HasText.Model where
 
 import qualified WordEmbedding.HasText.Args       as HA
 import qualified WordEmbedding.HasText.Dict       as HD
-import qualified WordEmbedding.HasText.Type
 
 import qualified Data.Array.Unboxed               as AU
 import qualified Data.Bifunctor                   as DB
@@ -17,7 +16,6 @@ import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
 
 import qualified Numeric.LinearAlgebra            as LA
-import qualified Numeric.LinearAlgebra.Devel      as LAD
 
 import qualified System.Random.MWC                as RM
 import qualified System.Random.MWC.CondensedTable as RMC
