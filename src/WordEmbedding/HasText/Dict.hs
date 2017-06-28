@@ -105,7 +105,7 @@ sizeTokens = foldr (\e acc -> acc + count e) 0
 addEntries :: TMap Entry -> T.Text -> TMap Entry
 addEntries ents t = HS.alter newEntry t ents
   where
-    newEntry (Just old@Entry{count = c}) = Just old{count = succ c}
+    newEntry (Just old@Entry{count = c}) = Just old{count = c + 1}
     newEntry Nothing                     = Just Entry{eword = t, count = 1}
     -- todo: implement ngram and label functionality
     -- nGrams n = (!! n) . L.transpose . L.map T.inits . T.tails

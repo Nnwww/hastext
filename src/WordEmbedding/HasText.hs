@@ -5,7 +5,7 @@ module WordEmbedding.HasText where
 
 import           Data.Ord
 import           Data.Bifunctor
-import           Data.Monoid
+import           Data.Semigroup
 import qualified Data.Binary                      as B
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Text                        as T
@@ -175,22 +175,18 @@ mostSimilar Word2Vec{_wordVec = wv} positives negatives
       V.unsafeFreeze cosSimVecs
     cosSim x = LA.dot (unitVector mean) (unitVector x)
     unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v) v
-    mean = LA.scale (1 / inputLength) . foldr1 LA.add $ (map getAndPosScale positives) ++ (map getAndNegScale negatives)
+    mean = LA.scale (1 / inputLength) . foldr1 LA.add $ (map getAndPosScale positives <> map getAndNegScale negatives)
     inputLength = fromIntegral $ (length positives) + (length negatives)
     getAndPosScale = getVec
     getAndNegScale = LA.scale (-1) . getVec
     getVec = HM.wI . (wv HS.!)
 
 saveModel :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
-saveModel w@Word2Vec{_args = args} = do
-  saveVector w
-  liftIO $ B.encodeFile (outFilePath <> ".bin") w
-  where
-    outFilePath = HA.output . snd $ args
+saveModel w@Word2Vec{_args = args} = liftIO $ B.encodeFile (HA.output . snd $ args) w
 
-saveVector :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
-saveVector Word2Vec{_args = args, _dict = dict, _wordVec = wv} =
-  liftIO . SI.withFile (outFilePath <> ".vec") SI.WriteMode $ \h -> do
+saveVectorCompat :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
+saveVectorCompat Word2Vec{_args = args, _dict = dict, _wordVec = wv} =
+  liftIO . SI.withFile (outFilePath <> ".vecc") SI.WriteMode $ \h -> do
     TI.hPutStrLn h $ toText sizeAndDim
     mapM_ (putVec h) $ HS.toList wv
   where
@@ -198,6 +194,12 @@ saveVector Word2Vec{_args = args, _dict = dict, _wordVec = wv} =
     sizeAndDim = (showb . HS.size $ HD.entries dict) <> showbSpace <> (showb . HA.dim $ snd args)
     putVec h (k, HM.Weights{HM.wI = i}) =
       TI.hPutStrLn h . toText $ (fromText k) <> showbSpace <> (unwordsB . map showb $ LA.toList i)
+
+loadModel :: (MonadIO m, MonadThrow m) => FilePath -> m Word2Vec
+loadModel fpath = liftIO $ B.decodeFile fpath
+
+loadVectorCompat :: (MonadIO m, MonadThrow m) => FilePath -> m Word2Vec
+loadVectorCompat fpath = undefined
 
 -- todo: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
 --      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)

@@ -1,8 +1,12 @@
 {-# LANGUAGE StrictData    #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+
 module Main where
 
 import           WordEmbedding.HasText.Args
+import qualified WordEmbedding.HasText       as H
 
 import           Data.Semigroup              ((<>))
 import           Options.Applicative
@@ -115,5 +119,7 @@ parseCLI = execParser parser
 
 main :: IO ()
 main = do
-  args <- parseCLI
-  return ()
+  largs <- parseCLI
+  w <- H.train largs
+  H.saveModel w
+  H.saveVectorCompat w

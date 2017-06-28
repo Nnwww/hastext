@@ -15,7 +15,6 @@ import qualified System.FilePath  as SF
 import qualified Data.Binary      as B
 import           GHC.Generics     (Generic)
 
-
 -- | Arguments necessary to learn
 type Args = (Method, Options)
 
@@ -55,7 +54,7 @@ learningDefault = Options
   , windows        = 5
   , epoch          = 5
   , minCount       = 5
-  , negatives      = 5
+  , negatives      = 7
   , loss           = Negative
   , tSub           = 0.0001
   , threads        = 12
