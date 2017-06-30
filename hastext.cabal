@@ -22,6 +22,7 @@ extra-source-files:
 
 data-files:
     data/NonFail.txt
+    data/text8
 
 source-repository head
   type: git
@@ -125,5 +126,6 @@ test-suite spec
   other-modules:
       TestDict
       TestData
+      TestModel
       Paths_hastext
   default-language: Haskell2010

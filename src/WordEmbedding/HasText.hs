@@ -1,5 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 
 module WordEmbedding.HasText where
 
@@ -120,7 +123,8 @@ train :: HA.Args -> IO Word2Vec
 train args@(_, opt) = do
   check
   dict  <- initDict
-  wvRef <- initWVRef dict
+  rand  <- RM.createSystemRandom
+  wvRef <- initWVRef rand dict
   tcRef <- initTokenCountRef
   let params = HM.Params
         { HM.args          = args
@@ -144,13 +148,20 @@ train args@(_, opt) = do
     }
   where
     initTokenCountRef = newMVar 0
-    initWVRef = newMVar . HS.map initW . HD.entries
-    initW _   = HM.Weights{HM.wI = makeVec, HM.wO = makeVec}
-    makeVec   = LA.fromList $ replicate (fromIntegral $ HA.dim opt) (0.0 :: Double)
-    initDict  = HD.initFromFile args
+    initDict = HD.initFromFile args
     check = do
       validOpts <- HA.validOpts args
       unless validOpts $ throwString "Error: Invalid Arguments."
+    initWVRef :: RM.GenIO -> HD.Dict -> IO HM.WordVecRef
+    initWVRef r d = (newMVar . HS.fromList) =<< (sequence . map (initW r) . HS.keys $ HD.entries d)
+      where
+        dim :: forall a . Num a => a
+        dim = fromIntegral $ HA.dim opt
+        zeros = LA.fromList $ replicate dim (0.0 :: Double)
+        initW gr k = do
+          randoms <- forM [1 .. dim :: Int] $ \_ -> RM.uniformR (-1 / dim, 1 / dim) gr
+          return (k, HM.Weights{HM.wI = LA.fromList randoms, HM.wO = zeros})
+
 
 data ErrMostSim = EmptyInput
                 | AbsenceOfWords {absPosW :: [T.Text], negPosW :: [T.Text]}
@@ -200,7 +211,3 @@ loadModel fpath = liftIO $ B.decodeFile fpath
 
 loadVectorCompat :: (MonadIO m, MonadThrow m) => FilePath -> m Word2Vec
 loadVectorCompat fpath = undefined
-
--- todo: write test code using simpler corpuses, and then try to compare hastext's result with gensim's result.
---      (corpus e.g. a a a a ... b b b b ... c c c c ... d d d d ...)
--- also try to compute outsoftmax.
