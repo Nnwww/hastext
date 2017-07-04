@@ -54,6 +54,7 @@ executables:
   hastext:
     source-dirs: app
     main: Main.hs
+    ghc-options: -O2
     ghc-options: *run
     dependencies:
       - optparse-applicative >= 0.13.2

@@ -175,7 +175,7 @@ mostSimilar :: Word2Vec
             -> Either ErrMostSim [(T.Text, Double)]
 mostSimilar Word2Vec{_wordVec = wv} positives negatives
   | length absPoss /= 0 || length absNegs /= 0 = Left $ AbsenceOfWords absPoss absNegs
-  | otherwise = Right . V.toList $ sortedCosSims
+  | otherwise = Right $ V.toList sortedCosSims
   where
     absPoss = absentWords positives
     absNegs = absentWords negatives
@@ -186,14 +186,17 @@ mostSimilar Word2Vec{_wordVec = wv} positives negatives
       V.unsafeFreeze cosSimVecs
     cosSim x = LA.dot (unitVector mean) (unitVector x)
     unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v) v
-    mean = LA.scale (1 / inputLength) . foldr1 LA.add $ (map getAndPosScale positives <> map getAndNegScale negatives)
+    mean = LA.scale (1 / inputLength) . foldr1 LA.add
+      $ (map getAndPosScale positives <> map getAndNegScale negatives)
     inputLength = fromIntegral $ (length positives) + (length negatives)
     getAndPosScale = getVec
     getAndNegScale = LA.scale (-1) . getVec
     getVec = HM.wI . (wv HS.!)
 
 saveModel :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
-saveModel w@Word2Vec{_args = args} = liftIO $ B.encodeFile (HA.output . snd $ args) w
+saveModel w@Word2Vec{_args = args} = liftIO $ B.encodeFile outFilePath w
+  where
+    outFilePath = HA.output . snd $ args
 
 saveVectorCompat :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
 saveVectorCompat Word2Vec{_args = args, _dict = dict, _wordVec = wv} =
