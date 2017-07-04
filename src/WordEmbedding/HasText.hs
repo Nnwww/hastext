@@ -167,7 +167,7 @@ data ErrMostSim = EmptyInput
                 | AbsenceOfWords {absPosW :: [T.Text], negPosW :: [T.Text]}
                 -- ^ words that do not exist in trained corpora when execute mostSimilar.
 
--- TODO: I would typing input lists using liquidhaskell.
+-- TODO: I would like to type input lists using liquidhaskell.
 -- | Get a most similar word list. Note that the result list is a delayed version of the entire dictionary.
 mostSimilar :: Word2Vec
             -> Word     -- ^ from
@@ -200,6 +200,7 @@ mostSimilar Word2Vec{_wordVec = wv} from to positives negatives
         start = fromIntegral f
         stop  = fromIntegral t
 
+-- | Such synonym of mostSimilar as it return 0-top n.
 mostSimilarN :: Word2Vec
             -> Word     -- ^ top n
             -> [T.Text] -- ^ positive words
