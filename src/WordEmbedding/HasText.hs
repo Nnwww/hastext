@@ -170,28 +170,42 @@ data ErrMostSim = EmptyInput
 -- TODO: I would typing input lists using liquidhaskell.
 -- | Get a most similar word list. Note that the result list is a delayed version of the entire dictionary.
 mostSimilar :: Word2Vec
+            -> Word     -- ^ from
+            -> Word     -- ^ to
             -> [T.Text] -- ^ positive words
             -> [T.Text] -- ^ negative words
             -> Either ErrMostSim [(T.Text, Double)]
-mostSimilar Word2Vec{_wordVec = wv} positives negatives
-  | length absPoss /= 0 || length absNegs /= 0 = Left $ AbsenceOfWords absPoss absNegs
-  | otherwise = Right $ V.toList sortedCosSims
+mostSimilar Word2Vec{_wordVec = wv} from to positives negatives
+  | length positives == 0 && length negatives == 0 = Left EmptyInput
+  | length absPoss   /= 0 || length absNegs   /= 0 = Left $ AbsenceOfWords absPoss absNegs
+  | otherwise = Right . slice from to $ V.toList sortedCosSims
   where
-    absPoss = absentWords positives
-    absNegs = absentWords negatives
-    absentWords = filter (not . flip HS.member wv)
-    sortedCosSims = runST $ do
+    unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v) v
+    sortedCosSims  = runST $ do
       cosSimVecs <- V.unsafeThaw . V.map (second $ cosSim . HM.wI) . V.fromList $ HS.toList wv
       VA.sortBy (flip $ comparing snd) cosSimVecs
       V.unsafeFreeze cosSimVecs
-    cosSim x = LA.dot (unitVector mean) (unitVector x)
-    unitVector (v :: LA.Vector Double) = LA.scale (1 / LA.norm_2 v) v
-    mean = LA.scale (1 / inputLength) . foldr1 LA.add
-      $ (map getAndPosScale positives <> map getAndNegScale negatives)
-    inputLength = fromIntegral $ (length positives) + (length negatives)
+    mean           = LA.scale (1 / inputLength) $ foldr1 LA.add scaledInputs
+    scaledInputs   = map getAndPosScale positives <> map getAndNegScale negatives
+    absPoss        = absentWords positives
+    absNegs        = absentWords negatives
+    absentWords    = filter (not . flip HS.member wv)
+    cosSim x       = LA.dot (unitVector mean) (unitVector x)
+    inputLength    = fromIntegral $ (length positives) + (length negatives)
     getAndPosScale = getVec
     getAndNegScale = LA.scale (-1) . getVec
-    getVec = HM.wI . (wv HS.!)
+    getVec         = HM.wI . (wv HS.!)
+    slice f t xs   = fst $ splitAt (stop - start) (snd $ splitAt start xs)
+      where
+        start = fromIntegral f
+        stop  = fromIntegral t
+
+mostSimilarN :: Word2Vec
+            -> Word     -- ^ top n
+            -> [T.Text] -- ^ positive words
+            -> [T.Text] -- ^ negative words
+            -> Either ErrMostSim [(T.Text, Double)]
+mostSimilarN w topn positives negatives = mostSimilar w 0 topn positives negatives
 
 saveModel :: (MonadIO m, MonadThrow m) => Word2Vec -> m ()
 saveModel w@Word2Vec{_args = args} = liftIO $ B.encodeFile outFilePath w

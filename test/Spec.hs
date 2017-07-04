@@ -16,16 +16,14 @@ import qualified WordEmbedding.HasText       as H
 
 import qualified System.Directory as SD
 
-slice start stop xs = fst $ splitAt (stop - start) (snd $ splitAt start xs)
 
-testNonFail :: Int -> T.Text -> HA.Args -> IO ()
+testNonFail :: Word -> T.Text -> HA.Args -> IO ()
 testNonFail topn posWord a = do
   printT ("train start" :: T.Text)
   w <- H.train a
   printT ("train end" :: T.Text)
   printT ("mostSim start" :: T.Text)
-  let Right rl = H.mostSimilar w [posWord] []
-  let r        = slice 0 topn rl
+  let Right r = H.mostSimilarN w topn [posWord] []
   printT r
   printT ("saveModel start" :: T.Text)
   H.saveModel w
