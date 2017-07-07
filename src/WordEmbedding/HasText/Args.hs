@@ -57,7 +57,7 @@ learningDefault = Options
   , negatives      = 7
   , loss           = Negative
   , tSub           = 0.0001
-  , threads        = 12
+  , threads        = 8
   , verbose        = 1
   }
 

@@ -1,8 +1,8 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-
 
 module WordEmbedding.HasText where
 
@@ -93,13 +93,13 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
   h     <- SI.openFile (HA.input opt) SI.ReadMode
   size  <- SI.hFileSize h
   SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ HA.threads opt)
-  let trainUntilCountUpTokens localTC oldLR oldLParams = do
+  let trainUntilCountUpTokens !localTC oldLR oldLParams = do
         tokenCount <- readMVar tcRef
         if tokens < tokenCount
           then SI.hClose h
           else do
-          let progress :: Double = fromIntegral tokenCount / fromIntegral tokens
-              newLR    = oldLR * (1.0 - progress)
+          let !(progress :: Double) = fromIntegral tokenCount / fromIntegral tokens
+              !newLR                = oldLR * (1.0 - progress)
           line <- HD.getLineLoop h dict gRand
           let learning = method $ V.map HD.eword line
           newLParams   <- flip execStateT oldLParams $ runReaderT learning params{HM.lr = newLR}
@@ -110,7 +110,7 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
   return params
   where
     tokens = (HA.epoch opt) * (HD.ntokens dict)
-    method  = chooseMethod lm
+    method = chooseMethod lm
     chooseMethod HA.Cbow     = cbow
     chooseMethod HA.Skipgram = skipGram
     bufferTokenCount localTokenCount

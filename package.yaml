@@ -15,8 +15,11 @@ extra-source-files:  README.md
 data-files:
   - data/*.txt
   - data/text8
-ghc-options:         -Wall
-_run-ghc-options: &run -threaded -rtsopts -with-rtsopts=-N
+  - data/text8s/text8_1m
+  - data/text8s/text8_5m
+  - data/text8s/text8_10m
+  - data/text8s/text8_25m
+ghc-options: -Wall
 
 dependencies:
   - base >= 4.7 && < 5
@@ -54,8 +57,7 @@ executables:
   hastext:
     source-dirs: app
     main: Main.hs
-    ghc-options: -O2
-    ghc-options: *run
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
     dependencies:
       - optparse-applicative >= 0.13.2
       - hastext
@@ -65,7 +67,7 @@ tests:
     source-dirs:
       - test
     main: Spec.hs
-    ghc-options: *run
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
     other-modules:
       - TestDict
       - TestData
@@ -76,3 +78,12 @@ tests:
       - doctest
       - tasty >= 0.11.2.1
       - tasty-hunit >= 0.9.2
+
+benchmarks:
+  core:
+    source-dirs: bench
+    main: Bench.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+    dependencies:
+      - hastext
+      - criterion >= 1.1.4
