@@ -9,6 +9,7 @@ module WordEmbedding.HasText where
 import           Data.Ord
 import           Data.Bifunctor
 import           Data.Semigroup
+import           Data.IORef
 import qualified Data.Binary                      as B
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.Text                        as T
@@ -62,8 +63,8 @@ instance B.Binary Word2Vec where
 unsafeWindowRange :: HA.Args -> HM.LParams -> V.Vector T.Text
                   -> Int -- ^ The central index of a window. Note that no boundary checks.
                   -> IO (V.Vector T.Text)
-unsafeWindowRange args model line targetIdx = do
-  winRange <- RM.uniformR (0, negs) . HM.gRand $ model
+unsafeWindowRange args lPRef line targetIdx = do
+  winRange <- RM.uniformR (0, negs) . HM.gRand =<< readIORef lPRef
   let winFrom = if targetIdx - winRange > 0 then targetIdx - winRange else 0
       winTo   = if V.length line > targetIdx + winRange then targetIdx + winRange else V.length line - 1
       inWindowAndNotTarget i _ = winFrom < i && i < winTo && i /= targetIdx
@@ -79,11 +80,10 @@ skipGram line = forM_ [0..V.length line - 1] $ \idx -> do
   where
     learn input target = HM.update (V.singleton input) target
 
-cbow :: V.Vector T.Text -> ReaderT HM.Params (StateT HM.LParams HM.MVarIO) ()
+cbow :: V.Vector T.Text -> HM.Model
 cbow line = forM_ [0..V.length line - 1] $ \idx -> do
-  args <- asks HM.args
-  model <- lift get
-  updateRange <- liftIO $ unsafeWindowRange args model line idx
+  (args, lPRef) <- asks $ first HM.args
+  updateRange <- liftIO $ unsafeWindowRange args lPRef line idx
   HM.update updateRange (V.unsafeIndex line idx)
 
 -- TODO: compare parallelization using MVar with one using ParIO etc.
@@ -93,7 +93,7 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
   h     <- SI.openFile (HA.input opt) SI.ReadMode
   size  <- SI.hFileSize h
   SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ HA.threads opt)
-  let trainUntilCountUpTokens !localTC oldLR oldLParams = do
+  let trainUntilCountUpTokens !localTC oldLR lParamsRef = do
         tokenCount <- readMVar tcRef
         if tokens < tokenCount
           then SI.hClose h
@@ -102,10 +102,10 @@ trainThread params@HM.Params{HM.args = (lm, opt), HM.dict = dict, HM.tokenCountR
               !newLR                = oldLR * (1.0 - progress)
           line <- HD.getLineLoop h dict gRand
           let learning = method $ V.map HD.eword line
-          newLParams   <- flip execStateT oldLParams $ runReaderT learning params{HM.lr = newLR}
+          runReaderT learning (params{HM.lr = newLR}, lParamsRef)
           newLocalTC <- bufferTokenCount $ localTC + fromIntegral (V.length line)
-          trainUntilCountUpTokens newLocalTC newLR newLParams
-  trainUntilCountUpTokens 0 (HA.lr opt) $ HM.initLParams (fromIntegral $ HA.dim opt) gRand
+          trainUntilCountUpTokens newLocalTC newLR lParamsRef
+  trainUntilCountUpTokens 0 (HA.lr opt) =<< (newIORef . HM.initLParams (fromIntegral $ HA.dim opt) $ gRand)
   putStrLn $ "Finish thread " ++ show threadNo
   return params
   where

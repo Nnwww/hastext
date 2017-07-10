@@ -12,7 +12,7 @@ noFailInputList = mconcat . L.map (L.replicate 5 . T.singleton) $ ['a' .. 'e']
 
 noFailPath, text8Path :: IO FilePath
 noFailPath = getDataFileName "data/NonFail.txt"
-text8Path  = getDataFileName "data/text8"
+text8Path  = getDataFileName "data/text8s/text8_1k"
 
 noFailParams, noFailOnMultiThreadParams, text8RunParams :: IO HA.Args
 noFailParams = do
@@ -51,5 +51,5 @@ text8RunDefault = noFailDefault
   , HA.dim      = 100
   , HA.windows  = 5
   , HA.minCount = 5
-  , HA.threads  = 4
+  , HA.threads  = 8
   }

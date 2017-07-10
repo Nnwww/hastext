@@ -23,7 +23,10 @@ extra-source-files:
 data-files:
     data/NonFail.txt
     data/text8
+    data/text8s/text8_100k
+    data/text8s/text8_10k
     data/text8s/text8_10m
+    data/text8s/text8_1k
     data/text8s/text8_1m
     data/text8s/text8_25m
     data/text8s/text8_5m
@@ -38,6 +41,7 @@ library
   ghc-options: -Wall
   build-depends:
       base >= 4.7 && < 5
+    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
@@ -49,8 +53,8 @@ library
     , conduit >= 1.2
     , conduit-combinators >= 1.1
     , mwc-random >= 0.13
+    , mutable-containers >= 0.3.3
     , resourcet >= 1.1
-    , hmatrix >= 0.1
     , hashable >= 1.2
     , mtl >= 2.2
     , filepath >= 1.4
@@ -73,6 +77,7 @@ executable hastext
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >= 4.7 && < 5
+    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
@@ -84,8 +89,8 @@ executable hastext
     , conduit >= 1.2
     , conduit-combinators >= 1.1
     , mwc-random >= 0.13
+    , mutable-containers >= 0.3.3
     , resourcet >= 1.1
-    , hmatrix >= 0.1
     , hashable >= 1.2
     , mtl >= 2.2
     , filepath >= 1.4
@@ -104,6 +109,7 @@ test-suite spec
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.7 && < 5
+    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
@@ -115,8 +121,8 @@ test-suite spec
     , conduit >= 1.2
     , conduit-combinators >= 1.1
     , mwc-random >= 0.13
+    , mutable-containers >= 0.3.3
     , resourcet >= 1.1
-    , hmatrix >= 0.1
     , hashable >= 1.2
     , mtl >= 2.2
     , filepath >= 1.4
@@ -139,9 +145,10 @@ benchmark core
   main-is: Bench.hs
   hs-source-dirs:
       bench
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N +RTS -T
   build-depends:
       base >= 4.7 && < 5
+    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
@@ -153,8 +160,8 @@ benchmark core
     , conduit >= 1.2
     , conduit-combinators >= 1.1
     , mwc-random >= 0.13
+    , mutable-containers >= 0.3.3
     , resourcet >= 1.1
-    , hmatrix >= 0.1
     , hashable >= 1.2
     , mtl >= 2.2
     , filepath >= 1.4

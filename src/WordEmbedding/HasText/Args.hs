@@ -44,17 +44,18 @@ data Options = Options
 -- | Loss functions
 data Loss = Negative | Hierarchical deriving (Show, Read, Generic)
 
+-- | default learning parameter based on FastText.
 learningDefault :: Options
 learningDefault = Options
   { input          = ""
   , output         = ""
-  , lr             = 0.05
+  , lr             = 0.1
   , lrUpdateTokens = 100
   , dim            = 100
   , windows        = 5
-  , epoch          = 5
-  , minCount       = 5
-  , negatives      = 7
+  , epoch          = 1
+  , minCount       = 1
+  , negatives      = 5
   , loss           = Negative
   , tSub           = 0.0001
   , threads        = 8

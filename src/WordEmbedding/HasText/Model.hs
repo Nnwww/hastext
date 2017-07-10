@@ -7,22 +7,21 @@ module WordEmbedding.HasText.Model where
 
 import qualified WordEmbedding.HasText.Args       as HA
 import qualified WordEmbedding.HasText.Dict       as HD
-
+import qualified Data.Atomics.Counter             as AC
 import qualified Data.Array.Unboxed               as AU
 import qualified Data.Bifunctor                   as DB
 import qualified Data.HashMap.Strict              as HS
 import qualified Data.List                        as L
 import qualified Data.Text                        as T
-import qualified Data.Vector                      as V
+import qualified Data.Vector.Unboxed.Mutable      as VUM
+import qualified Data.Binary                      as B
+import           GHC.Generics (Generic)
 
-import qualified Numeric.LinearAlgebra            as LA
 
 import qualified System.Random.MWC                as RM
 import qualified System.Random.MWC.CondensedTable as RMC
 
-import qualified Data.Binary as B
-import           GHC.Generics (Generic)
-
+import           Data.IORef
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Reader
@@ -37,46 +36,49 @@ data Params = Params
   , logf          :: Double -> Double             -- ^ (memorized) log function
   , noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
   , wordVecRef    :: WordVecRef                   -- ^ word vectors
-  , tokenCountRef :: MVar Word                    -- ^ the number of tokens consumed
+  , tokenCountRef :: AC.AtomicCounter             -- ^ the number of tokens consumed
   }
 
 -- | A parameter per thread.
 data LParams = LParams
   { loss         :: Double
-  , hiddenL      :: LA.Vector Double
-  , gradVec      :: LA.Vector Double
+  , hiddenL      :: VUM.IOVector Double
+  , gradVec      :: VUM.IOVector Double
   , gRand        :: RM.GenIO
   }
 
+type Model = ReaderT (Params, LParams) MVarIO ()
+
 type WordVec    = HD.TMap Weights
-type WordVecRef = MVar WordVec
+type WordVecRef = IORef WordVec
 
 -- | The pair of input/output word vectors correspond to a word.
 data Weights = Weights
-  { wI :: LA.Vector Double -- ^ input word vector
-  , wO :: LA.Vector Double -- ^ output word vector
+  { wI :: VUM.IOVector Double -- ^ input word vector
+  , wO :: VUM.IOVector Double -- ^ output word vector
   } deriving (Generic)
 
 instance B.Binary Weights
 
-initLParams :: Int -> RM.GenIO -> LParams
-initLParams dim gR = LParams
-  { loss = 0.0
-  , hiddenL = zeros
-  , gradVec = zeros
-  , gRand = gR
-  }
-  where
-    zeros = LA.fromList $ replicate dim 0.0
+initLParams :: MonadIO m => Int -> RM.GenIO -> m LParams
+initLParams dim gR = do
+  grad   <- VUM.replicate dim 0.0
+  hidden <- VUM.replicate dim 0.0
+  return LParams
+    { loss = 0.0
+    , hiddenL = grad
+    , gradVec = hidden
+    , gRand = gR
+    }
 {-# INLINE initLParams #-}
 
 computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
-computeHidden wsRef input = do
+computeHidden wsRef !input = do
   ws <- readMVar wsRef
-  let sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
+  let !sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
   return $ (inverse . V.length $ input) `LA.scale` sumVectors
   where
-    getWI w k = wI $ w HS.! k
+    getWI w k = wI $! w HS.! k
     inverse d = 1.0 / fromIntegral d
 {-# INLINE computeHidden #-}
 
@@ -87,22 +89,22 @@ type MVarIO = IO
 -- The function that update model based on formulas of the objective function and binary label.
 binaryLogistic :: Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
                -> T.Text -- ^ a updating target word
-               -> ReaderT Params (StateT LParams MVarIO) ()
+               -> Model
 binaryLogistic !label !input = do
-  !Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt} <- ask
-  !model@LParams{loss = ls, hiddenL = hidden, gradVec = grad} <- lift get
-  ws <- liftIO $! takeMVar wvRef
+  (Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt},lPRef) <- ask
+  lp@LParams{loss = ls, hiddenL = hidden, gradVec = grad} <- liftIO $ readIORef lPRef
+  ws <- liftIO $ takeMVar wvRef
   let !wo         = wO (ws HS.! input)
       !score      = sigt (LA.dot wo hidden)
       !alpha      = lr' * (boolToNum label - score)
       !newWO      = wo + LA.scale alpha hidden
       updateWO w  = Just w{wO = newWO}
       !newWs      = HS.update updateWO input ws
-  liftIO $! putMVar wvRef newWs
+  liftIO $ putMVar wvRef newWs
   let !minusLog   = negate . logt $! if label then score else 1.0 - score
       !newGrad    = grad + LA.scale alpha wo
       !newLoss    = minusLog + ls
-  lift . put $! model{loss = newLoss, gradVec = newGrad}
+  lift . put $! lp{loss = newLoss, gradVec = newGrad}
   where
     boolToNum = fromIntegral . fromEnum
 {-# INLINE binaryLogistic #-}
@@ -110,9 +112,9 @@ binaryLogistic !label !input = do
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
 negativeSampling :: T.Text -- ^ a updating target word
-                 -> ReaderT Params (StateT LParams MVarIO) ()
+                 -> Model
 negativeSampling input = do
-  genRand <- lift $ gets gRand
+  genRand <- liftIO $ readIORef $ asks snd
   nDist   <- asks noiseDist
   negs    <- asks $ HA.negatives . snd . args
   join . liftIO . foldM (sampleNegative nDist genRand) samplePositive $ [0 .. negs]
