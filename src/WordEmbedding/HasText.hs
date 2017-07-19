@@ -20,6 +20,7 @@ import           Data.Bifunctor
 import           Data.Semigroup
 import           Data.Mutable
 import qualified Data.Binary                         as B
+import qualified Data.Binary.Get                     as BG
 import qualified Data.HashMap.Strict                 as HS
 import qualified Data.Text                           as T
 import qualified Data.Text.IO                        as TI
@@ -176,14 +177,15 @@ mostSimilar HasTextResult{htWordVec = wv} from to positives negatives
         start = fromIntegral f
         stop  = fromIntegral t
 
--- | Such synonym of mostSimilar as it return 0-top n.
+-- | Such synonym of mostSimilar as it return from 0 to top N.
 mostSimilarN :: HasTextResult
-            -> Word     -- ^ top n
+            -> Word     -- ^ top N
             -> [T.Text] -- ^ positive words
             -> [T.Text] -- ^ negative words
             -> Either ErrMostSim [(T.Text, Double)]
 mostSimilarN w topn positives negatives = mostSimilar w 0 topn positives negatives
 
+-- | This function save a trained data, but you don't have to use this because this is essentially a wrapper function of Binary package at present.
 saveModel :: (MonadIO m, MonadThrow m) => HasTextResult -> m ()
 saveModel w@HasTextResult{htArgs = args} = liftIO $ B.encodeFile outFilePath w
   where
@@ -200,8 +202,9 @@ saveVectorCompat HasTextResult{htArgs = args, htDict = dict, htWordVec = wv} =
     putVec h (k, Weights{_wI = i}) =
       TI.hPutStrLn h . toText $ (fromText k) <> showbSpace <> (unwordsB . map showb $ VU.toList i)
 
-loadModel :: (MonadIO m, MonadThrow m) => FilePath -> m HasTextResult
-loadModel fpath = liftIO $ B.decodeFile fpath
+-- | This function load a pre-trained data, but you don't have to use this because this is essentially a wrapper function of Binary package at present.
+loadModel :: (MonadIO m) => FilePath -> m (Either (BG.ByteOffset, String) HasTextResult)
+loadModel fpath = liftIO $ B.decodeFileOrFail fpath
 
 loadVectorCompat :: (MonadIO m, MonadThrow m) => FilePath -> m HasTextResult
 loadVectorCompat fpath = undefined
