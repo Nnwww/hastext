@@ -32,7 +32,7 @@ noFailSteps topn posWord args step = do
   existanceOutputVectorCompat <- SD.doesFileExist (outputPath <> ".vecc")
   assertEqual "Save vectors as a compatible form." True existanceOutputVectorCompat
   step "Running loadModel"
-  !(_) <- H.loadModel (HA.output . snd $ a)
+  Right _ <- H.loadModel (HA.output . snd $ a)
   return ()
 
 main :: IO ()
@@ -49,5 +49,5 @@ unitTests = testGroup "Unit tests"
             , testCase "testInitFromFile is non zero" $ testInitFromFile
             , testCaseSteps "A series of Hastext's operations is not fail (on multi thread)"
               (noFailSteps 10 "a" noFailOnMultiThreadParams)
-            , testCaseSteps "Hastext run on text8" (noFailSteps 10 "may" text8RunParams)
+            -- , testCaseSteps "Hastext run on text8" (noFailSteps 10 "may" text8RunParams)
             ]
