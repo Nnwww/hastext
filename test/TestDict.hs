@@ -11,12 +11,8 @@ import qualified Data.HashMap.Strict as HS
 import Test.Tasty.HUnit
 
 instance Eq Entry where
-  (==) a b = (wa == wb) && (ca == cb)
-    where
-      wa = eword a
-      ca = count a
-      wb = eword b
-      cb = count b
+  (==) Entry{_eWord = wa, _eCount = ca}
+       Entry{_eWord = wb, _eCount = cb} = (wa == wb) && (ca == cb)
 
 testAddEntries :: Assertion
 testAddEntries = assert (assumption == testAEData)
@@ -26,7 +22,7 @@ testAddEntries = assert (assumption == testAEData)
     assumption = HS.fromList [("a", Entry "a" 1), ("b", Entry "b" 2)]
 
 listWordsFromFile :: FilePath -> IO [T.Text]
-listWordsFromFile fp = wordsFromFile (\a t -> t : a) [] fp
+listWordsFromFile fp = foldWordsFromFile (\a t -> t : a) [] fp
 
 testReadCorrectlyWordsFromFile :: Assertion
 testReadCorrectlyWordsFromFile = assert $ do
@@ -35,7 +31,7 @@ testReadCorrectlyWordsFromFile = assert $ do
 
 testCollectFromFile :: Assertion
 testCollectFromFile = assert $ do
-  ents <- wordsFromFile addEntries HS.empty =<< noFailPath
+  ents <- foldWordsFromFile addEntries HS.empty =<< noFailPath
   return $ ents == assumption
     where
       assumption = HS.fromList . L.map (makekv . T.singleton) $ ['a' .. 'e']

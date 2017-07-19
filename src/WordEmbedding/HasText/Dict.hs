@@ -9,6 +9,8 @@ module WordEmbedding.HasText.Dict
   , getLineLoop
   , unsafeGetLine
   , initFromFile
+  , addEntries
+  , foldWordsFromFile
   ) where
 
 import           System.IO                           as SI
@@ -72,8 +74,8 @@ unsafeGetLine h Dict{..} rand =
 -- |
 -- The function folding words splited by @Data.Char.isSpace@ from a file.
 -- Note that files as source is utf8 only.
-wordsFromFile :: (r -> T.Text -> r) -> r -> FilePath -> IO r
-wordsFromFile modifier plain readPath =
+foldWordsFromFile :: (r -> T.Text -> r) -> r -> FilePath -> IO r
+foldWordsFromFile modifier plain readPath =
   runConduitRes $ CC.sourceFile readPath
   .| CC.decodeUtf8
   .| CC.splitOnUnboundedE C.isSpace
@@ -81,7 +83,7 @@ wordsFromFile modifier plain readPath =
 
 initFromFile  :: (MonadIO m, MonadThrow m) => HasTextArgs -> m Dict
 initFromFile (_, HasTextOptions{..}) = liftIO $ do
-  ents <- liftIO $ wordsFromFile addEntries HS.empty _input
+  ents <- liftIO $ foldWordsFromFile addEntries HS.empty _input
   let newEnts = threshold ents _minCount
       newTkns = sizeTokens newEnts
       newDiss = initDiscards _tSub newEnts newTkns
