@@ -41,10 +41,10 @@ library
   ghc-options: -Wall
   build-depends:
       base >= 4.7 && < 5
-    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
+    , binary-orphans >= 0.1.6
     , text >= 1.2
     , text-show >= 3.4.1.1
     , unordered-containers >= 0.2
@@ -59,15 +59,20 @@ library
     , mtl >= 2.2
     , filepath >= 1.4
     , directory >= 1.3
+    , deeqseq >= 1.4.2
     , async >= 2.1
     , safe-exceptions >= 0.1
+    , lens >= 4.15
   exposed-modules:
       WordEmbedding.HasText.Args
       WordEmbedding.HasText.Dict
       WordEmbedding.HasText.Model
       WordEmbedding.HasText
   other-modules:
-      WordEmbedding.HasText.Type
+      WordEmbedding.HasText.Internal.Type
+      WordEmbedding.HasText.Internal.Strict.HasText
+      WordEmbedding.HasText.Internal.Strict.Model
+      WordEmbedding.HasText.Internal.Strict.MVectorOps
   default-language: Haskell2010
 
 executable hastext
@@ -77,10 +82,10 @@ executable hastext
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >= 4.7 && < 5
-    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
+    , binary-orphans >= 0.1.6
     , text >= 1.2
     , text-show >= 3.4.1.1
     , unordered-containers >= 0.2
@@ -95,8 +100,10 @@ executable hastext
     , mtl >= 2.2
     , filepath >= 1.4
     , directory >= 1.3
+    , deeqseq >= 1.4.2
     , async >= 2.1
     , safe-exceptions >= 0.1
+    , lens >= 4.15
     , optparse-applicative >= 0.13.2
     , hastext
   default-language: Haskell2010
@@ -109,10 +116,10 @@ test-suite spec
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.7 && < 5
-    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
+    , binary-orphans >= 0.1.6
     , text >= 1.2
     , text-show >= 3.4.1.1
     , unordered-containers >= 0.2
@@ -127,8 +134,10 @@ test-suite spec
     , mtl >= 2.2
     , filepath >= 1.4
     , directory >= 1.3
+    , deeqseq >= 1.4.2
     , async >= 2.1
     , safe-exceptions >= 0.1
+    , lens >= 4.15
     , hastext
     , doctest
     , tasty >= 0.11.2.1
@@ -148,10 +157,10 @@ benchmark core
   ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N +RTS -T
   build-depends:
       base >= 4.7 && < 5
-    , atomic-primops >= 0.8.0.4
     , array >= 0.5
     , bytestring >= 0.10
     , binary >= 0.8
+    , binary-orphans >= 0.1.6
     , text >= 1.2
     , text-show >= 3.4.1.1
     , unordered-containers >= 0.2
@@ -166,8 +175,10 @@ benchmark core
     , mtl >= 2.2
     , filepath >= 1.4
     , directory >= 1.3
+    , deeqseq >= 1.4.2
     , async >= 2.1
     , safe-exceptions >= 0.1
+    , lens >= 4.15
     , hastext
     , criterion >= 1.1.4
   default-language: Haskell2010

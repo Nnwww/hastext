@@ -1,157 +1,105 @@
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE IncoherentInstances #-}
 
-module WordEmbedding.HasText.Model where
+module WordEmbedding.HasText.Model
+  ( Params(..)
+  , LParams(..)
+  , Model
+  , WordVec
+  , WordVecRef
+  , Weights(..)
+  , MWeights(..)
+  , initLParams
+  , updateModel
+  , genSigmoid
+  , genLog
+  , genNoiseDistribution
+  ) where
 
-import qualified WordEmbedding.HasText.Args       as HA
-import qualified WordEmbedding.HasText.Dict       as HD
-import qualified Data.Atomics.Counter             as AC
-import qualified Data.Array.Unboxed               as AU
-import qualified Data.Bifunctor                   as DB
-import qualified Data.HashMap.Strict              as HS
-import qualified Data.List                        as L
-import qualified Data.Text                        as T
-import qualified Data.Vector.Unboxed.Mutable      as VUM
-import qualified Data.Binary                      as B
-import           GHC.Generics (Generic)
-
-
-import qualified System.Random.MWC                as RM
-import qualified System.Random.MWC.CondensedTable as RMC
-
-import           Data.IORef
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Reader
-import           Control.Monad.State
+import           Data.Mutable
+import qualified Data.Array.Unboxed                       as AU
+import qualified Data.Bifunctor                           as DB
+import qualified Data.HashMap.Strict                      as HS
+import qualified Data.List                                as L
+import qualified Data.Text                                as T
+import qualified Data.Vector                              as V
+import qualified Data.Vector.Unboxed.Mutable              as VUM
+import           Data.Binary                              (Binary)
+import           Data.Binary.Orphans                      ()
+import qualified System.Random.MWC                        as RM
+import qualified System.Random.MWC.CondensedTable         as RMC
+import           WordEmbedding.HasText.Dict
+import           WordEmbedding.HasText.Internal.Strict.Model
+import qualified WordEmbedding.HasText.Internal.Strict.MVectorOps as HMV
+import           WordEmbedding.HasText.Internal.Type
+                 ( HasTextOptions(..)
+                 , Params(..)
+                 , LParams(..)
+                 , Model
+                 , WordVec
+                 , WordVecRef
+                 , Weights(..)
+                 , MWeights(..)
+                 )
 
--- | A parameter throughout learning. Params should be thread-safe because it is shared among threads.
-data Params = Params
-  { args          :: HA.Args
-  , dict          :: HD.Dict
-  , lr            :: Double
-  , sigf          :: Double -> Double             -- ^ (memorized) sigmoid function
-  , logf          :: Double -> Double             -- ^ (memorized) log function
-  , noiseDist     :: RMC.CondensedTableV HD.Entry -- ^ noise distribution table
-  , wordVecRef    :: WordVecRef                   -- ^ word vectors
-  , tokenCountRef :: AC.AtomicCounter             -- ^ the number of tokens consumed
-  }
-
--- | A parameter per thread.
-data LParams = LParams
-  { loss         :: Double
-  , hiddenL      :: VUM.IOVector Double
-  , gradVec      :: VUM.IOVector Double
-  , gRand        :: RM.GenIO
-  }
-
-type Model = ReaderT (Params, LParams) MVarIO ()
-
-type WordVec    = HD.TMap Weights
-type WordVecRef = IORef WordVec
-
--- | The pair of input/output word vectors correspond to a word.
-data Weights = Weights
-  { wI :: VUM.IOVector Double -- ^ input word vector
-  , wO :: VUM.IOVector Double -- ^ output word vector
-  } deriving (Generic)
-
-instance B.Binary Weights
+                 --( HasTextArgs
+                 --, HasTextOptions(..)
+                 --, TMap
+                 --, Dict(..)
+                 --, Entry(..)
+                 --)
+instance Binary Weights
 
 initLParams :: MonadIO m => Int -> RM.GenIO -> m LParams
-initLParams dim gR = do
-  grad   <- VUM.replicate dim 0.0
-  hidden <- VUM.replicate dim 0.0
-  return LParams
-    { loss = 0.0
-    , hiddenL = grad
-    , gradVec = hidden
-    , gRand = gR
-    }
+initLParams dim gR = liftIO $ do
+  iouRef <- newRef (0 :: Double)
+  h <- VUM.replicate dim 0.0
+  g <- VUM.replicate dim 0.0
+  return LParams {_loss = iouRef, _hidden = h, _grad = g, _rand = gR}
 {-# INLINE initLParams #-}
-
-computeHidden :: WordVecRef -> V.Vector T.Text -> IO (LA.Vector Double)
-computeHidden wsRef !input = do
-  ws <- readMVar wsRef
-  let !sumVectors = V.foldl1 (+) . V.map (getWI ws) $ input
-  return $ (inverse . V.length $ input) `LA.scale` sumVectors
-  where
-    getWI w k = wI $! w HS.! k
-    inverse d = 1.0 / fromIntegral d
-{-# INLINE computeHidden #-}
-
-type RandomIO = IO
-type MVarIO = IO
-
--- |
--- The function that update model based on formulas of the objective function and binary label.
-binaryLogistic :: Bool   -- ^ label in Xin's tech report. (If this is True function compute about positive word. If False, negative-sampled word.)
-               -> T.Text -- ^ a updating target word
-               -> Model
-binaryLogistic !label !input = do
-  (Params{wordVecRef = wvRef, lr = lr', sigf = sigt, logf = logt},lPRef) <- ask
-  lp@LParams{loss = ls, hiddenL = hidden, gradVec = grad} <- liftIO $ readIORef lPRef
-  ws <- liftIO $ takeMVar wvRef
-  let !wo         = wO (ws HS.! input)
-      !score      = sigt (LA.dot wo hidden)
-      !alpha      = lr' * (boolToNum label - score)
-      !newWO      = wo + LA.scale alpha hidden
-      updateWO w  = Just w{wO = newWO}
-      !newWs      = HS.update updateWO input ws
-  liftIO $ putMVar wvRef newWs
-  let !minusLog   = negate . logt $! if label then score else 1.0 - score
-      !newGrad    = grad + LA.scale alpha wo
-      !newLoss    = minusLog + ls
-  lift . put $! lp{loss = newLoss, gradVec = newGrad}
-  where
-    boolToNum = fromIntegral . fromEnum
-{-# INLINE binaryLogistic #-}
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
 negativeSampling :: T.Text -- ^ a updating target word
                  -> Model
 negativeSampling input = do
-  genRand <- liftIO $ readIORef $ asks snd
-  nDist   <- asks noiseDist
-  negs    <- asks $ HA.negatives . snd . args
-  join . liftIO . foldM (sampleNegative nDist genRand) samplePositive $ [0 .. negs]
+  (Params{_args = (_, HasTextOptions{_negatives = negs}), _noiseDist = nDist},
+   LParams{_rand = rand}) <- ask
+  join . liftIO . foldM (sampleNegative nDist rand) samplePositive $ [1 .. negs]
     where
       samplePositive = binaryLogistic True input
       sampleNegative noise rand acc _ = do
-        HD.Entry{HD.eword = negWord} <- getNegative noise rand input
+        Entry{_eWord = negWord} <- getNegative noise rand input
         return (acc >> binaryLogistic False negWord)
 {-# INLINE negativeSampling #-}
 
 -- |
 -- The function that update a model. This function is a entry point of LParams module.
-update :: V.Vector T.Text -> T.Text -> ReaderT Params (StateT LParams MVarIO) ()
-update inputs updTarget = do
-  wvRef <- asks wordVecRef
-  newHidden <- liftIO $ computeHidden wvRef inputs
-  lift . modify $ updateHidden newHidden
+updateModel :: V.Vector T.Text -> T.Text -> Model
+updateModel inputs updTarget = do
+  (Params{_wordVecRef = wvRef}, LParams{_hidden = h, _grad = g}) <- ask
+  computeHidden h wvRef inputs
   negativeSampling updTarget
-  grad <- lift $ gets gradVec
-  liftIO . modifyMVar_ wvRef $ return . updateWordVecs grad
+  liftIO . modifyMVar_ wvRef $ \ws -> updateWordVecs g ws >> return ws
   where
-    updateHidden h m = m{hiddenL = h}
-    updateWordVecs grad ws = V.foldl' (wIPlusGrad grad) ws inputs
-    wIPlusGrad grad ws k = HS.update (\w -> Just w{wI = grad + wI w}) k ws
-{-# INLINE update #-}
+    updateWordVecs grad ws = V.mapM_ (addGradmWI grad ws) inputs
+    addGradmWI grad ws k = getmWI ws k `HMV.addMM` grad
+{-# INLINE updateModel #-}
 
-getNegative :: RMC.CondensedTableV HD.Entry -> RM.GenIO -> T.Text -> RandomIO HD.Entry
-getNegative noiseTable rand input = tryLoop
+getNegative :: MonadIO m => RMC.CondensedTableV Entry -> RM.GenIO -> T.Text -> m Entry
+getNegative noiseTable rand input = liftIO tryLoop
   where
     tryLoop = do
       ent <- RMC.genFromTable noiseTable rand
-      if HD.eword ent /= input then return ent else tryLoop
+      if _eWord ent /= input then return ent else tryLoop
 {-# INLINE getNegative #-}
 
-genNoiseDistribution :: Double                       -- ^ nth power of unigram distribution
-                     -> HD.TMap HD.Entry             -- ^ vocabulary set for constructing a noise distribution table
-                     -> RMC.CondensedTableV HD.Entry -- ^ noise distribution table
+genNoiseDistribution :: Double                    -- ^ nth power of unigram distribution
+                     -> TMap Entry                -- ^ vocabulary set for constructing a noise distribution table
+                     -> RMC.CondensedTableV Entry -- ^ noise distribution table
 genNoiseDistribution power ents =
   RMC.tableFromProbabilities . V.map (DB.second divZ) . V.fromList $ countToPowers
   where
@@ -159,9 +107,9 @@ genNoiseDistribution power ents =
     divZ a = a / z
     z = L.sum . L.map snd $ countToPowers
     countToPowers = HS.elems . HS.map (\ent -> (ent, countToPower ent)) $ ents
-    countToPower ent = (fromIntegral . HD.count $ ent) ** power
+    countToPower ent = (fromIntegral . _eCount $ ent) ** power
 
-genHierarchical :: HD.TMap HD.Entry -- ^ vocabulary set for building a hierarchical softmax tree
+genHierarchical :: TMap Entry -- ^ vocabulary set for building a hierarchical softmax tree
                 -> Double           -- ^ learning rate
                 -> T.Text           -- ^ a input word
                 -> Double           -- ^ loss parameter

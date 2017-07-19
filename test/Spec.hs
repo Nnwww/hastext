@@ -7,6 +7,7 @@ import Test.Tasty.HUnit
 import           TestDict
 import           TestData
 
+import           Control.DeepSeq
 import           Data.Monoid
 import qualified Data.Text                   as T
 import qualified System.Directory            as SD

@@ -40,31 +40,32 @@ The following arguments are optional:
 -}
 
 
-makeOptions :: Options -- default parameters
-            -> Parser Options
-makeOptions Options { lr             = ra
-                    , lrUpdateTokens = ut
-                    , dim            = di
-                    , windows        = wi
-                    , epoch          = ep
-                    , minCount       = mc
-                    , negatives      = ne
-                    , loss           = lo
-                    , tSub           = ts
-                    } =
-  Options <$> inputOpt
-          <*> outputOpt
-          <*> lrOpt
-          <*> lrUpdateTokensOpt
-          <*> dimOpt
-          <*> windowsOpt
-          <*> epochOpt
-          <*> minCountOpt
-          <*> negativesOpt
-          <*> lossOpt
-          <*> tSubOpt
-          <*> threadsOpt
-          <*> verboseOpt
+makeOptions :: HasTextOptions -- default parameters
+            -> Parser HasTextOptions
+makeOptions HasTextOptions { _initLR         = ra
+                           , _lrUpdateTokens = ut
+                           , _dim            = di
+                           , _windows        = wi
+                           , _epoch          = ep
+                           , _minCount       = mc
+                           , _negatives      = ne
+                           , _lossFn         = lo
+                           , _tSub           = ts
+                           } =
+  HasTextOptions
+  <$> inputOpt
+  <*> outputOpt
+  <*> lrOpt
+  <*> lrUpdateTokensOpt
+  <*> dimOpt
+  <*> windowsOpt
+  <*> epochOpt
+  <*> minCountOpt
+  <*> negativesOpt
+  <*> lossOpt
+  <*> tSubOpt
+  <*> threadsOpt
+  <*> verboseOpt
   where
     mandatoryPathOpt :: String -> Char -> String -> String -> Parser String
     mandatoryPathOpt longName shortName metaName helpMsg = strOption
@@ -84,7 +85,6 @@ makeOptions Options { lr             = ra
 
     inputOpt  = mandatoryPathOpt "input"  'i' "INPUTPATH"  "training file path"
     outputOpt = mandatoryPathOpt "output" 'o' "OUTPUTPATH" "output file path"
-
     lrOpt             = paramOpt "lr"             'r' "RATE"      ra "learning rate"
     lrUpdateTokensOpt = paramOpt "lrUpdateTokens" 'u' "NTOKENS"   ut "number of tokens that update the learning rate"
     dimOpt            = paramOpt "dim"            'd' "DIM"       di "dimention of word vectors"
@@ -97,21 +97,21 @@ makeOptions Options { lr             = ra
     threadsOpt        = paramOpt "th"             'm' "THREAD"    12 "number of threads"
     verboseOpt        = paramOpt "verbose"        'v' "LEVEL"      1 "verbosity level"
 
-skipGram :: Mod CommandFields Args
+skipGram :: Mod CommandFields HasTextArgs
 skipGram = command "skipgram" opts
   where
     opts = info (helper <*> sgParser) (progDesc "learn representation using skipgram")
     sgParser = (Skipgram, ) <$> makeOptions skipGramDefault
     skipGramDefault = learningDefault
 
-cbow :: Mod CommandFields Args
+cbow :: Mod CommandFields HasTextArgs
 cbow = command "cbow" opts
   where
     opts = info (helper <*> cbowParser) (progDesc "learn representation using cbow")
     cbowParser = (Cbow, ) <$> makeOptions cbowDefault
     cbowDefault = learningDefault
 
-parseCLI :: IO Args
+parseCLI :: IO HasTextArgs
 parseCLI = execParser parser
   where
     parser = info (helper <*> commands) (fullDesc <> header "A haskell implementation of fastText")
