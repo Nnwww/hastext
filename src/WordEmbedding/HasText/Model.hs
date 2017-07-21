@@ -16,12 +16,12 @@ module WordEmbedding.HasText.Model
   , genNoiseDistribution
   ) where
 
+import           Control.Arrow
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Reader
 import           Data.Mutable
 import qualified Data.Array.Unboxed                       as AU
-import qualified Data.Bifunctor                           as DB
 import qualified Data.HashMap.Strict                      as HS
 import qualified Data.List                                as L
 import qualified Data.Text                                as T
@@ -95,7 +95,7 @@ genNoiseDistribution :: Double                    -- ^ nth power of unigram dist
                      -> TMap Entry                -- ^ vocabulary set for constructing a noise distribution table
                      -> RMC.CondensedTableV Entry -- ^ noise distribution table
 genNoiseDistribution power ents =
-  RMC.tableFromProbabilities . V.map (DB.second divZ) . V.fromList $ countToPowers
+  RMC.tableFromProbabilities . V.map (second divZ) . V.fromList $ countToPowers
   where
     -- Z is a normalization parameter of the noise distribution in paper.
     divZ a = a / z

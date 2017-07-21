@@ -16,19 +16,20 @@ module WordEmbedding.HasText
   ) where
 
 import           Data.Ord
-import           Data.Bifunctor
 import           Data.Semigroup
 import           Data.Mutable
-import qualified Data.Binary                         as B
-import qualified Data.Binary.Get                     as BG
-import qualified Data.HashMap.Strict                 as HS
-import qualified Data.Text                           as T
-import qualified Data.Text.IO                        as TI
-import qualified Data.Vector                         as V
-import qualified Data.Vector.Unboxed                 as VU
-import qualified Data.Vector.Algorithms.Intro        as VA
-import qualified System.IO                           as SI
-import qualified System.Random.MWC                   as RM
+import qualified Data.Binary                                   as B
+import qualified Data.Binary.Get                               as BG
+import qualified Data.HashMap.Strict                           as HS
+import qualified Data.Text                                     as T
+import qualified Data.Text.IO                                  as TI
+import qualified Data.Vector                                   as V
+import qualified Data.Vector.Unboxed                           as VU
+import qualified Data.Vector.Algorithms.Intro                  as VA
+import qualified System.IO                                     as SI
+import qualified System.Random.MWC                             as RM
+import qualified System.ProgressBar                            as P
+import           Control.Arrow
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Exception.Safe
@@ -74,38 +75,43 @@ cbow line = forM_ [0..V.length line - 1] $ \idx -> do
 
 -- TODO: compare parallelization using MVar with one using ParIO etc.
 trainThread :: Params -> Integer -> IO Params
-trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRef} threadNo = do
-  gRand <- RM.createSystemRandom
-  h     <- SI.openFile (_input opt) SI.ReadMode
-  size  <- SI.hFileSize h
-  SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ _threads opt)
-  let trainUntilCountUpTokens !localTC oldLParams@LParams{_lr = oldLR} = do
-        tokenCount <- atomicModifyRef' tcRef (\tc -> (tc,fromIntegral tc))
-        if allTokens < tokenCount
-          then SI.hClose h
-          else do
-          let (progress :: Double) = fromIntegral tokenCount / fromIntegral allTokens
-              newLParams           = oldLParams{_lr = oldLR * (1.0 - progress)}
-          line <- getLineLoop h dict gRand
-          let learning = method $ V.map _eWord line
-          runReaderT learning (params, newLParams)
-          newLocalTC <- bufferTokenCount $ localTC + fromIntegral (V.length line)
-          trainUntilCountUpTokens newLocalTC newLParams
-  trainUntilCountUpTokens 0 =<< initLP gRand
-  putStrLn $ "Finish thread " ++ show threadNo
+trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRef, _progressRef = progRef} threadNo = do
+  genRand <- RM.createSystemRandom
+  bracket (SI.openFile (_input opt) SI.ReadMode) SI.hClose (trainMain genRand)
   return params
   where
     initLP gr = initLParams (_initLR opt) (fromIntegral $ _dim opt) gr
-    allTokens = (_epoch opt) * (_ntokens dict)
-    method = chooseMethod lm
+    allTokens = _epoch opt * _ntokens dict
+    method    = chooseMethod lm
     chooseMethod Cbow     = cbow
     chooseMethod Skipgram = skipGram
+
     bufferTokenCount :: Word -> IO Word
     bufferTokenCount localTokenCount
       | localTokenCount <= _lrUpdateTokens opt = return localTokenCount
-      | otherwise = do -- TODO?: logging progress rate
-         atomicModifyRef' tcRef ((,()) . (+ localTokenCount))
+      | otherwise = do
+         atomicModifyRef' tcRef $ (,()) . (+ localTokenCount)
+         P.incProgress progRef $ fromIntegral localTokenCount
          return 0
+
+    trainMain :: RM.GenIO -> SI.Handle -> IO ()
+    trainMain rand h = do
+      size <- SI.hFileSize h
+      SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ _threads opt)
+      let trainUntilCountUpTokens !localTC oldLParams@LParams{_lr = oldLR} = do
+            tokenCount <- atomicModifyRef' tcRef (\tc -> (tc,fromIntegral tc))
+            if allTokens < tokenCount
+              then return ()
+              else do
+              let (progress :: Double) = fromIntegral tokenCount / fromIntegral allTokens
+                  newLParams           = oldLParams{_lr = oldLR * (1.0 - progress)}
+              line <- getLineLoop h dict rand
+              let learning = method $ V.map _eWord line
+              runReaderT learning (params, newLParams)
+              newLocalTC <- bufferTokenCount $ localTC + fromIntegral (V.length line)
+              trainUntilCountUpTokens newLocalTC newLParams
+      trainUntilCountUpTokens 0 =<< initLP rand
+
 
 train :: HasTextArgs -> IO HasTextResult
 train args@(_, opt) = do
@@ -114,6 +120,8 @@ train args@(_, opt) = do
   rand  <- RM.createSystemRandom
   wvRef <- initWVRef rand dict
   tcRef <- newRef 0
+  let allTokens = fromIntegral $ (_epoch opt) * (_ntokens dict)
+  (progRef, progThId) <- P.startProgress (P.msg "Training") P.percentage 40 allTokens
   let params = Params
         { _args          = args
         , _dict          = dict
@@ -122,9 +130,11 @@ train args@(_, opt) = do
         , _noiseDist     = genNoiseDistribution 0.75 $ _entries dict
         , _wordVecRef    = wvRef
         , _tokenCountRef = tcRef
+        , _progressRef   = progRef
         }
   resultParams : _ <- mapConcurrently (trainThread params) [0.. fromIntegral $ _threads opt - 1]
   immWordVec <- unsafeFreezeWordVecRef $ _wordVecRef resultParams
+  killThread progThId
   return HasTextResult
     { htArgs      = _args      resultParams
     , htDict      = _dict      resultParams

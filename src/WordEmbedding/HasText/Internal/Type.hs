@@ -32,6 +32,7 @@ import           Data.Text                                (Text)
 import           Data.Mutable
 import qualified System.Random.MWC                        as RM
 import qualified System.Random.MWC.CondensedTable         as RMC
+import qualified System.ProgressBar                       as P
 
 import           GHC.Generics                             (Generic)
 import           Control.Concurrent
@@ -87,6 +88,7 @@ data Params = Params
   , _noiseDist     :: RMC.CondensedTableV Entry    -- ^ noise distribution table
   , _wordVecRef    :: WordVecRef                   -- ^ word vectors
   , _tokenCountRef :: IORef Word                   -- ^ the number of tokens consumed
+  , _progressRef   :: P.ProgressRef
   }
 
 -- | A local parameter per thread.

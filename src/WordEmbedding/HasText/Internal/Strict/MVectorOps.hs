@@ -49,7 +49,6 @@ foriM_ :: VUM.IOVector Double -> (Int -> Double -> IO Double) -> IO ()
 foriM_ ov f = mapiM_ f ov
 {-# INLINE foriM_ #-}
 
-
 foldiM :: VUM.IOVector Double -> a -> (Int -> a -> Double -> IO a) -> IO a
 foldiM ov a f = go 0 a
   where
