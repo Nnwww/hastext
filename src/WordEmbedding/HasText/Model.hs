@@ -47,12 +47,12 @@ import           WordEmbedding.HasText.Internal.Type
 
 instance Binary Weights
 
-initLParams :: MonadIO m => Int -> RM.GenIO -> m LParams
-initLParams dim gR = liftIO $ do
+initLParams :: MonadIO m => Double -> Int -> RM.GenIO -> m LParams
+initLParams initLR dim gR = liftIO $ do
   iouRef <- newRef (0 :: Double)
   h <- VUM.replicate dim 0.0
   g <- VUM.replicate dim 0.0
-  return LParams {_loss = iouRef, _hidden = h, _grad = g, _rand = gR}
+  return LParams {_loss = iouRef, _lr = initLR, _hidden = h, _grad = g, _rand = gR}
 {-# INLINE initLParams #-}
 
 -- |

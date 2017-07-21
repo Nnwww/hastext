@@ -59,6 +59,7 @@ library
     , safe-exceptions >= 0.1
     , text >= 1.2
     , text-show >= 3.4.1.1
+    , terminal-progress-bar >= 0.1.1.1
     , unordered-containers >= 0.2
     , vector >= 0.11
     , vector-algorithms >= 0.7
@@ -99,6 +100,7 @@ executable hastext
     , safe-exceptions >= 0.1
     , text >= 1.2
     , text-show >= 3.4.1.1
+    , terminal-progress-bar >= 0.1.1.1
     , unordered-containers >= 0.2
     , vector >= 0.11
     , vector-algorithms >= 0.7
@@ -132,6 +134,7 @@ test-suite spec
     , safe-exceptions >= 0.1
     , text >= 1.2
     , text-show >= 3.4.1.1
+    , terminal-progress-bar >= 0.1.1.1
     , unordered-containers >= 0.2
     , vector >= 0.11
     , vector-algorithms >= 0.7
@@ -172,6 +175,7 @@ benchmark core
     , safe-exceptions >= 0.1
     , text >= 1.2
     , text-show >= 3.4.1.1
+    , terminal-progress-bar >= 0.1.1.1
     , unordered-containers >= 0.2
     , vector >= 0.11
     , vector-algorithms >= 0.7

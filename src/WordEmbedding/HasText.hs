@@ -79,23 +79,24 @@ trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRe
   h     <- SI.openFile (_input opt) SI.ReadMode
   size  <- SI.hFileSize h
   SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ _threads opt)
-  let trainUntilCountUpTokens !localTC oldLR lParams = do
+  let trainUntilCountUpTokens !localTC oldLParams@LParams{_lr = oldLR} = do
         tokenCount <- atomicModifyRef' tcRef (\tc -> (tc,fromIntegral tc))
-        if tokens < tokenCount
+        if allTokens < tokenCount
           then SI.hClose h
           else do
-          let (progress :: Double) = fromIntegral tokenCount / fromIntegral tokens
-              newLR                = oldLR * (1.0 - progress)
+          let (progress :: Double) = fromIntegral tokenCount / fromIntegral allTokens
+              newLParams           = oldLParams{_lr = oldLR * (1.0 - progress)}
           line <- getLineLoop h dict gRand
           let learning = method $ V.map _eWord line
-          runReaderT learning (params{_lr = newLR}, lParams)
+          runReaderT learning (params, newLParams)
           newLocalTC <- bufferTokenCount $ localTC + fromIntegral (V.length line)
-          trainUntilCountUpTokens newLocalTC newLR lParams
-  trainUntilCountUpTokens 0 (_initLR opt) =<< (initLParams (fromIntegral $ _dim opt) $ gRand)
+          trainUntilCountUpTokens newLocalTC newLParams
+  trainUntilCountUpTokens 0 =<< initLP gRand
   putStrLn $ "Finish thread " ++ show threadNo
   return params
   where
-    tokens = (_epoch opt) * (_ntokens dict)
+    initLP gr = initLParams (_initLR opt) (fromIntegral $ _dim opt) gr
+    allTokens = (_epoch opt) * (_ntokens dict)
     method = chooseMethod lm
     chooseMethod Cbow     = cbow
     chooseMethod Skipgram = skipGram
@@ -116,7 +117,6 @@ train args@(_, opt) = do
   let params = Params
         { _args          = args
         , _dict          = dict
-        , _lr            = _initLR opt
         , _sig           = genSigmoid 512 8
         , _log           = genLog 512
         , _noiseDist     = genNoiseDistribution 0.75 $ _entries dict

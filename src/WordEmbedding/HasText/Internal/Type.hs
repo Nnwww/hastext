@@ -80,9 +80,8 @@ data HasTextResult = HasTextResult
 
 -- | A parameter throughout learning. Params should be thread-safe since it is shared among threads.
 data Params = Params
-  { _args          :: HasTextArgs
-  , _dict          :: {-# UNPACK #-} Dict
-  , _lr            :: Double
+  { _args          :: HasTextArgs                  -- ^ user setting
+  , _dict          :: {-# UNPACK #-} Dict          -- ^ dict of input corpus.
   , _sig           :: Double -> Double             -- ^ (memorized) sigmoid function
   , _log           :: Double -> Double             -- ^ (memorized) log function
   , _noiseDist     :: RMC.CondensedTableV Entry    -- ^ noise distribution table
@@ -93,6 +92,7 @@ data Params = Params
 -- | A local parameter per thread.
 data LParams = LParams
   { _loss   :: IOURef Double
+  , _lr     :: Double
   , _hidden :: {-# UNPACK #-} (VUM.IOVector Double)
   , _grad   :: {-# UNPACK #-} (VUM.IOVector Double)
   , _rand   :: RM.GenIO
