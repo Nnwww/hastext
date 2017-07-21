@@ -45,12 +45,6 @@ import           WordEmbedding.HasText.Internal.Type
                  , MWeights(..)
                  )
 
-                 --( HasTextArgs
-                 --, HasTextOptions(..)
-                 --, TMap
-                 --, Dict(..)
-                 --, Entry(..)
-                 --)
 instance Binary Weights
 
 initLParams :: MonadIO m => Int -> RM.GenIO -> m LParams

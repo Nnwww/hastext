@@ -3,8 +3,8 @@
 import Data.Semigroup
 import Criterion.Main
 import Paths_hastext
-import WordEmbedding.HasText.Args as HA
-import WordEmbedding.HasText as H
+import WordEmbedding.HasText.Args
+import WordEmbedding.HasText
 
 
 main :: IO ()
@@ -21,6 +21,6 @@ main = defaultMain [
     -- ]
   ]
   where
-    trainOnDataFile dataFilePath = H.saveModel =<< H.train =<< (setFilePath <$> getDataFileName dataFilePath)
-    setFilePath inputFilePath = (HA.Skipgram, HA.learningDefault{ HA.input  = inputFilePath
-                                                                , HA.output = inputFilePath <> ".out"})
+    trainOnDataFile dataFilePath = saveModel =<< train =<< (setFilePath <$> getDataFileName dataFilePath)
+    setFilePath inputFilePath = (Skipgram, learningDefault{ _input  = inputFilePath
+                                                          , _output = inputFilePath <> ".out"})

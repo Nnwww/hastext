@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
-
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -14,9 +13,11 @@ import qualified System.Directory            as SD
 import           WordEmbedding.HasText.Args
 import           WordEmbedding.HasText
 
-noFailSteps :: Word -> T.Text -> IO HasTextArgs -> ((String -> IO ()) -> Assertion)
-noFailSteps topn posWord args step = do
-  a <- args
+normalUseCase :: Word -> T.Text -> IO HasTextArgs -> ((String -> IO ()) -> Assertion)
+normalUseCase topn posWord args step = do
+  a@(_, HasTextOptions{_input = i, _output = o}) <- args
+  step $ "input path: "  <> i
+  step $ "output path: " <> o
   step "Running train"
   w <- train a
   step "Running mostSim"
@@ -48,6 +49,6 @@ unitTests = testGroup "Unit tests"
             , testCase "(wordsFromFile addEntries) collect entries from file" $ testCollectFromFile
             , testCase "testInitFromFile is non zero" $ testInitFromFile
             , testCaseSteps "A series of Hastext's operations is not fail (on multi thread)"
-              (noFailSteps 10 "a" noFailOnMultiThreadParams)
+              (normalUseCase 10 "a" noFailOnMultiThreadParams)
             -- , testCaseSteps "Hastext run on text8" (noFailSteps 10 "may" text8RunParams)
             ]

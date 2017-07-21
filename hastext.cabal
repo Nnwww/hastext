@@ -78,7 +78,7 @@ executable hastext
   main-is: Main.hs
   hs-source-dirs:
       app
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.7 && < 5
     , array >= 0.5
@@ -151,7 +151,7 @@ benchmark core
   main-is: Bench.hs
   hs-source-dirs:
       bench
-  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N +RTS -T
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.7 && < 5
     , array >= 0.5
