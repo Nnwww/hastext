@@ -45,7 +45,6 @@ binaryLogistic label input = do
     M.modifyRef' _loss (+ minusLog)
   where
     boolToNum = fromIntegral . fromEnum
-{-# INLINE binaryLogistic #-}
 
 computeHidden :: MonadIO m => VUM.IOVector Double -> WordVecRef -> V.Vector T.Text -> m ()
 computeHidden hidden wsRef input = liftIO $ do
@@ -55,8 +54,6 @@ computeHidden hidden wsRef input = liftIO $ do
   where
     inverse d = 1.0 / fromIntegral d
     invLen = inverse . V.length $! input
-{-# INLINE computeHidden #-}
 
 getmWI :: (Hashable k, Eq k) => HS.HashMap k MWeights -> k -> VUM.IOVector Double
 getmWI w k = _mwI $! w HS.! k
-{-# INLINE getmWI #-}

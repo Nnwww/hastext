@@ -53,7 +53,6 @@ initLParams initLR dim gR = liftIO $ do
   h <- VUM.replicate dim 0.0
   g <- VUM.replicate dim 0.0
   return LParams {_loss = iouRef, _lr = initLR, _hidden = h, _grad = g, _rand = gR}
-{-# INLINE initLParams #-}
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.
@@ -68,7 +67,6 @@ negativeSampling input = do
       sampleNegative noise rand acc _ = do
         Entry{_eWord = negWord} <- getNegative noise rand input
         return (acc >> binaryLogistic False negWord)
-{-# INLINE negativeSampling #-}
 
 -- |
 -- The function that update a model. This function is a entry point of LParams module.
@@ -81,7 +79,6 @@ updateModel inputs updTarget = do
   where
     updateWordVecs grad ws = V.mapM_ (addGradmWI grad ws) inputs
     addGradmWI grad ws k = getmWI ws k `HMV.addMM` grad
-{-# INLINE updateModel #-}
 
 getNegative :: MonadIO m => RMC.CondensedTableV Entry -> RM.GenIO -> T.Text -> m Entry
 getNegative noiseTable rand input = liftIO tryLoop
@@ -89,7 +86,6 @@ getNegative noiseTable rand input = liftIO tryLoop
     tryLoop = do
       ent <- RMC.genFromTable noiseTable rand
       if _eWord ent /= input then return ent else tryLoop
-{-# INLINE getNegative #-}
 
 genNoiseDistribution :: Double                    -- ^ nth power of unigram distribution
                      -> TMap Entry                -- ^ vocabulary set for constructing a noise distribution table
@@ -130,7 +126,6 @@ genSigmoid tableSize maxValue x
     mapIndexToTableX :: Double -> Double
     mapIndexToTableX idx = (idx * 2.0 * maxValue) / doubledTableSize - maxValue
     lsigmoid lx = 1.0 / (1.0 + exp (negate lx))
-{-# INLINE genSigmoid #-}
 
 -- | generate memorized log function.
 genLog :: Word -> (Double -> Double)
@@ -147,4 +142,3 @@ genLog tableSize x
     logTable = AU.listArray (0, tableSize)
       [Prelude.log ((i + 1e-5) / doubledTableSize) | i <- [0.0 .. doubledTableSize]]
       -- I add 1e-5 to x due to avoid computing log 0.
-{-# INLINE genLog #-}
