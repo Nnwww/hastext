@@ -62,7 +62,7 @@ negativeSampling :: T.Text -- ^ a updating target word
 negativeSampling input = do
   (Params{_args = (_, HasTextOptions{_negatives = negs}), _noiseDist = nDist},
    LParams{_rand = rand}) <- ask
-  join . liftIO . foldM (sampleNegative nDist rand) samplePositive $ [1 .. negs]
+  join . liftIO . foldM (sampleNegative nDist rand) samplePositive $! [1 .. negs]
     where
       samplePositive = binaryLogistic True input
       sampleNegative noise rand acc _ = do
@@ -100,7 +100,7 @@ genNoiseDistribution power ents =
     -- Z is a normalization parameter of the noise distribution in paper.
     divZ a = a / z
     z = L.sum . L.map snd $ countToPowers
-    countToPowers = HS.elems . HS.map (\ent -> (ent, countToPower ent)) $ ents
+    countToPowers = HS.elems . HS.map (id &&& countToPower) $ ents
     countToPower ent = (fromIntegral . _eCount $ ent) ** power
 
 genHierarchical :: TMap Entry -- ^ vocabulary set for building a hierarchical softmax tree

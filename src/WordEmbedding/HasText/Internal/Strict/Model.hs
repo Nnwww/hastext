@@ -50,7 +50,7 @@ binaryLogistic label input = do
 computeHidden :: MonadIO m => VUM.IOVector Double -> WordVecRef -> V.Vector T.Text -> m ()
 computeHidden hidden wsRef input = liftIO $ do
   ws <- readMVar wsRef
-  mapM_ (HMV.addMM hidden) (V.map (getmWI ws) input)
+  mapM_ (HMV.addMM hidden) $ V.map (getmWI ws) input
   HMV.scale invLen hidden
   where
     inverse d = 1.0 / fromIntegral d
