@@ -60,8 +60,8 @@ instance B.Binary HasTextResult where
   put HasTextResult{htArgs = a, htDict = d, htWordVec = w} = B.put a >> B.put d >> B.put w
 
 
-skipGram :: V.Vector T.Text -> Model
-skipGram line = forM_ [0..V.length line - 1] $ \idx -> do
+skipgram :: V.Vector T.Text -> Model
+skipgram line = forM_ [0..V.length line - 1] $ \idx -> do
   (Params{_args = a}, lp) <- ask
   mapM_ (learn $ V.unsafeIndex line idx) =<< liftIO (unsafeWindowRange a lp line idx)
   where
@@ -84,7 +84,7 @@ trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRe
     allTokens = _epoch opt * _ntokens dict
     method    = chooseMethod lm
     chooseMethod Cbow     = cbow
-    chooseMethod Skipgram = skipGram
+    chooseMethod Skipgram = skipgram
 
     bufferTokenCount :: Word -> IO Word
     bufferTokenCount localTokenCount
@@ -100,8 +100,7 @@ trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRe
       SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ _threads opt)
       let trainUntilCountUpTokens !localTC oldLParams@LParams{_lr = oldLR} = do
             tokenCount <- atomicModifyRef' tcRef (\tc -> (tc,fromIntegral tc))
-            if allTokens < tokenCount
-              then return ()
+            if allTokens < tokenCount then return ()
               else do
               let (progress :: Double) = fromIntegral tokenCount / fromIntegral allTokens
                   newLParams           = oldLParams{_lr = oldLR * (1.0 - progress)}
