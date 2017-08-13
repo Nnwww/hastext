@@ -21,7 +21,9 @@ data-files:
 ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
 
 # see https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html#profiling-parallel-and-concurrent-programs
-ghc-prof-options: -fno-prof-count-entries
+ghc-prof-options:
+  - -fno-prof-count-entries
+  - -O2
 
 dependencies:
   - base >= 4.7 && < 5
@@ -70,6 +72,12 @@ executables:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+    ghc-prof-options:
+      - -fno-prof-count-entries
+      - -O2
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts="-N -p"
     dependencies:
       - optparse-applicative >= 0.13.2
       - hastext
