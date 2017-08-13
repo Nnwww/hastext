@@ -17,6 +17,7 @@ cabal.sandbox.config
 *.eventlog
 .stack-work/
 cabal.project.local
+*.cabal
 ### https://raw.github.com/github/gitignore/10eb19db07e36f5b8b26315ec90e27c5e82a4b47/Global/OSX.gitignore
 
 .DS_Store
@@ -107,6 +108,3 @@ cscope.files
 cscope.out
 cscope.in.out
 cscope.po.out
-
-
-
