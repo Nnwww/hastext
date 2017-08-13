@@ -11,8 +11,8 @@ main :: IO ()
 main = defaultMain [
   bgroup "train and save on text8"
     [ bench "1k"  $ nfIO (trainOnDataFile "data/text8s/text8_1k")
-    , bench "10k"  $ nfIO (trainOnDataFile "data/text8s/text8_10k")
-    , bench "100k" $ nfIO (trainOnDataFile "data/text8s/text8_100k")
+    -- , bench "10k"  $ nfIO (trainOnDataFile "data/text8s/text8_10k")
+    -- , bench "100k" $ nfIO (trainOnDataFile "data/text8s/text8_100k")
     ]
     -- [ bench "1mb"  $ nfIO (trainOnDataFile "data/text8s/text8_1m")
     -- , bench "5mb"  $ nfIO (trainOnDataFile "data/text8s/text8_5m")

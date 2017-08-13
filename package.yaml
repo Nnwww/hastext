@@ -12,11 +12,16 @@ category:            Machine learning
 build-type:          Simple
 extra-source-files:  README.md
 
+# coupuses for test or benchmark are placed here.
 data-files:
   - data/*.txt
   - data/text8
   - data/text8s/*
+
 ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+
+# see https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/profiling.html#profiling-parallel-and-concurrent-programs
+ghc-prof-options: -fno-prof-count-entries
 
 dependencies:
   - base >= 4.7 && < 5
@@ -60,7 +65,11 @@ executables:
   hastext:
     source-dirs: app
     main: Main.hs
-    ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:
+      - -O2
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
       - optparse-applicative >= 0.13.2
       - hastext
@@ -70,7 +79,10 @@ tests:
     source-dirs:
       - test
     main: Spec.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     other-modules:
       - Paths_hastext
       - TestDict
@@ -86,7 +98,11 @@ benchmarks:
   core:
     source-dirs: bench
     main: Bench.hs
-    ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:
+      - -O2
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
       - hastext
       - criterion >= 1.1.4
