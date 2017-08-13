@@ -23,4 +23,6 @@ main = defaultMain [
   where
     trainOnDataFile dataFilePath = saveModel =<< train =<< (setFilePath <$> getDataFileName dataFilePath)
     setFilePath inputFilePath = (Skipgram, learningDefault{ _input  = inputFilePath
-                                                          , _output = inputFilePath <> ".out"})
+                                                          , _output = inputFilePath <> ".out"
+                                                          , _minCount = 0
+                                                          })
