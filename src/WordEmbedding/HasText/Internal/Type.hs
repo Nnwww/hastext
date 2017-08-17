@@ -73,8 +73,6 @@ data HasTextLoss = Negative | Hierarchical deriving (Show, Read, Generic)
 data HasTextResult = HasTextResult
   { htArgs          :: HasTextArgs
   , htDict          :: Dict
-  , htSig           :: Double -> Double          -- ^ (memorized) sigmoid function
-  , htLog           :: Double -> Double          -- ^ (memorized) log function
   , htNoiseDist     :: RMC.CondensedTableV Entry -- ^ noise distribution table
   , htWordVec       :: WordVec                   -- ^ word vectors
   }
@@ -83,8 +81,6 @@ data HasTextResult = HasTextResult
 data Params = Params
   { _args          :: HasTextArgs                  -- ^ user setting
   , _dict          :: {-# UNPACK #-} Dict          -- ^ dict of input corpus.
-  , _sig           :: Double -> Double             -- ^ (memorized) sigmoid function
-  , _log           :: Double -> Double             -- ^ (memorized) log function
   , _noiseDist     :: RMC.CondensedTableV Entry    -- ^ noise distribution table
   , _wordVecRef    :: WordVecRef                   -- ^ word vectors
   , _tokenCountRef :: IORef Word                   -- ^ the number of tokens consumed

@@ -12,9 +12,9 @@ import qualified Data.Text                                        as T
 import           Data.Hashable                                    (Hashable)
 import qualified Data.HashMap.Strict                              as HS
 import qualified Data.Vector                                      as V
-import qualified Data.Vector.Unboxed                              as VU
 import qualified Data.Vector.Unboxed.Mutable                      as VUM
 import qualified Data.Mutable                                     as M
+import           WordEmbedding.HasText.Internal.Strict.HasText    (sigmoid)
 import qualified WordEmbedding.HasText.Internal.Strict.MVectorOps as HMV
 import           WordEmbedding.HasText.Internal.Type
                  ( Params(..)
@@ -34,7 +34,7 @@ binaryLogistic label input = do
   liftIO $ do
     ws <- takeMVar _wordVecRef
     let mwo = _mwO (ws HS.! input)
-    score <- fmap _sig (HMV.sumDotMM mwo _hidden)
+    score <- sigmoid <$> HMV.sumDotMM mwo _hidden
     let alpha = _lr * (boolToNum label - score)
     HMV.foriM_ _grad (\i e -> do
                        emwo <- VUM.unsafeRead mwo i
@@ -42,7 +42,7 @@ binaryLogistic label input = do
     HMV.mapi (const (alpha *)) _hidden
     HMV.addMM mwo _hidden
     putMVar _wordVecRef ws
-    let minusLog = negate . _log $! if label then score else 1.0 - score
+    let minusLog = negate . log $! if label then score else 1.0 - score
     M.modifyRef' _loss (+ minusLog)
   where
     boolToNum = fromIntegral . fromEnum
@@ -58,42 +58,3 @@ computeHidden hidden wsRef input = liftIO $ do
 
 getmWI :: (Hashable k, Eq k) => HS.HashMap k MWeights -> k -> VUM.IOVector Double
 getmWI w k = _mwI $! w HS.! k
-
-
--- | generate memorized sigmoid function.
-genSigmoid :: Int    -- ^ table size
-           -> Double -- ^ the maximum value of x axis
-           -> (Double -> Double)
-genSigmoid tableSize maxValue x
-  | x < -maxValue = 0.0
-  | maxValue < x  = 1.0
-  | otherwise     = sigmoidTable `VU.unsafeIndex` mapInputToIndex x
-  where
-    doubledTableSize = fromIntegral tableSize :: Double
-
-    mapInputToIndex :: Double -> Int
-    mapInputToIndex lx = floor ((lx + maxValue) * doubledTableSize / maxValue / 2.0)
-
-    sigmoidTable :: VU.Vector Double
-    sigmoidTable = VU.generate tableSize (lsigmoid . mapIndexToTableX . fromIntegral)
-
-    mapIndexToTableX :: Double -> Double
-    mapIndexToTableX idx = (idx * 2.0 * maxValue) / doubledTableSize - maxValue
-
-    lsigmoid :: Double -> Double
-    lsigmoid lx = 1.0 / (1.0 + exp (negate lx))
-
--- | generate memorized log function.
-genLog :: Int -> (Double -> Double)
-genLog tableSize x
-  | 1.0 < x   = 0.0 -- Because this function is passed probabilities.
-  | otherwise = logTable `VU.unsafeIndex` mapInputToIndex x
-  where
-    doubledTableSize = fromIntegral tableSize :: Double
-
-    mapInputToIndex :: Double -> Int
-    mapInputToIndex lx = floor (lx * doubledTableSize)
-
-    logTable :: VU.Vector Double
-    logTable = VU.generate tableSize (log . (/ doubledTableSize) . (+ 1e-5) . fromIntegral)
-      -- add 1e-5 to x due to avoid computing log 0.

@@ -52,8 +52,6 @@ instance B.Binary HasTextResult where
     return HasTextResult
       { htArgs      = a
       , htDict      = d
-      , htSig       = genSigmoid 512 8
-      , htLog       = genLog 512
       , htNoiseDist = genNoiseDistribution 0.75 $ _entries d
       , htWordVec   = w
       }
@@ -124,8 +122,6 @@ train args@(_, opt) = do
   let params = Params
         { _args          = args
         , _dict          = dict
-        , _sig           = genSigmoid 512 8
-        , _log           = genLog 512
         , _noiseDist     = genNoiseDistribution 0.75 $ _entries dict
         , _wordVecRef    = wvRef
         , _tokenCountRef = tcRef
@@ -137,8 +133,6 @@ train args@(_, opt) = do
   return HasTextResult
     { htArgs      = _args      resultParams
     , htDict      = _dict      resultParams
-    , htSig       = _sig       resultParams
-    , htLog       = _log       resultParams
     , htNoiseDist = _noiseDist resultParams
     , htWordVec   = immWordVec
     }

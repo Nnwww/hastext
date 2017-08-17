@@ -27,7 +27,6 @@ ghc-prof-options:
 
 dependencies:
   - base >= 4.7 && < 5
-  - array >= 0.5
   - async >= 2.1
   - binary >= 0.8
   - binary-orphans >= 0.1.6

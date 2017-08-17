@@ -7,6 +7,7 @@ module WordEmbedding.HasText.Internal.Strict.HasText
   , unsafeFreezeMW
   , norm2
   , scale
+  , sigmoid
   , addUU
   , dotUU
   , unitVector
@@ -65,3 +66,6 @@ unitVector v = scale (1 / norm2 v) v
 
 cosSim :: VU.Vector Double -> VU.Vector Double -> Double
 cosSim nume deno = dotUU (unitVector nume) (unitVector deno)
+
+sigmoid :: Double -> Double
+sigmoid lx = 1.0 / (1.0 + exp (negate lx))
