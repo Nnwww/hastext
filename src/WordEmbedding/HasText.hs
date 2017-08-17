@@ -115,7 +115,7 @@ trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRe
 train :: HasTextArgs -> IO HasTextResult
 train args@(_, opt) = do
   check
-  dict  <- initDict
+  dict  <- initFromFile args
   rand  <- RM.createSystemRandom
   wvRef <- initWVRef rand dict
   tcRef <- newRef 0
@@ -143,7 +143,6 @@ train args@(_, opt) = do
     , htWordVec   = immWordVec
     }
   where
-    initDict = initFromFile args
     unsafeFreezeWordVecRef wvRef = fmap HS.fromList . mapM (\(k,v) -> (k,) <$> unsafeFreezeMW v) . HS.toList =<< readMVar wvRef
     check = validOpts args >>= (flip unless) (throwString "Error: Invalid Arguments.")
     initWVRef :: RM.GenIO -> Dict -> IO WordVecRef

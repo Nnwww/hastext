@@ -81,9 +81,9 @@ foldWordsFromFile modifier plain readPath =
   .| CC.splitOnUnboundedE C.isSpace
   .| CC.foldl modifier plain
 
-initFromFile  :: (MonadIO m, MonadThrow m) => HasTextArgs -> m Dict
-initFromFile (_, HasTextOptions{..}) = liftIO $ do
-  ents <- liftIO $ foldWordsFromFile addEntries HS.empty _input
+initFromFile  :: HasTextArgs -> IO Dict
+initFromFile (_, HasTextOptions{..}) = do
+  ents <- foldWordsFromFile addEntries HS.empty _input
   let newEnts = threshold ents _minCount
       newTkns = sizeTokens newEnts
       newDiss = initDiscards _tSub newEnts newTkns
