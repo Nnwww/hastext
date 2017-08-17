@@ -73,8 +73,8 @@ data HasTextLoss = Negative | Hierarchical deriving (Show, Read, Generic)
 data HasTextResult = HasTextResult
   { htArgs          :: HasTextArgs
   , htDict          :: Dict
-  , htSigf          :: Double -> Double          -- ^ (memorized) sigmoid function
-  , htLogf          :: Double -> Double          -- ^ (memorized) log function
+  , htSig           :: Double -> Double          -- ^ (memorized) sigmoid function
+  , htLog           :: Double -> Double          -- ^ (memorized) log function
   , htNoiseDist     :: RMC.CondensedTableV Entry -- ^ noise distribution table
   , htWordVec       :: WordVec                   -- ^ word vectors
   }

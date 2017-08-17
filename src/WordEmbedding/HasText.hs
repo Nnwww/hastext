@@ -52,8 +52,8 @@ instance B.Binary HasTextResult where
     return HasTextResult
       { htArgs      = a
       , htDict      = d
-      , htSigf      = genSigmoid 512 8
-      , htLogf      = genLog 512
+      , htSig       = genSigmoid 512 8
+      , htLog       = genLog 512
       , htNoiseDist = genNoiseDistribution 0.75 $ _entries d
       , htWordVec   = w
       }
@@ -137,8 +137,8 @@ train args@(_, opt) = do
   return HasTextResult
     { htArgs      = _args      resultParams
     , htDict      = _dict      resultParams
-    , htSigf      = _sig       resultParams
-    , htLogf      = _log       resultParams
+    , htSig       = _sig       resultParams
+    , htLog       = _log       resultParams
     , htNoiseDist = _noiseDist resultParams
     , htWordVec   = immWordVec
     }
