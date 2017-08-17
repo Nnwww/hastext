@@ -1,18 +1,14 @@
 #!/usr/bin/env stack
--- stack --resolver lts-8.21 --install-ghc runghc --package turtle --package FindBin
+{- stack --resolver lts-8.23 --install-ghc runghc
+   --package FindBin --package http-conduit --package conduit-combinators --package bytestring
+-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import Turtle
+import Prelude                    hiding (FilePath)
 import System.Environment
 import System.Environment.FindBin
-import Data.Maybe
+import Network.HTTP.Simple
+import qualified Data.ByteString.Lazy.Char8 as L8
 
-checkRequiredCommands = do
-  ewget <- which "wget"
-  ecurl <- which "curl"
-  getExecutablePath
-
-main = do
-  -- corpusPath <- stdin
-  print =<< checkRequiredCommands
-  print __Bin__
+main :: IO ()
+main = httpLBS "http://mattmahoney.net/dc/text8.zip" >>= L8.putStrLn
