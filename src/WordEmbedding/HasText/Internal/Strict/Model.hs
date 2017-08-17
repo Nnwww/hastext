@@ -58,3 +58,4 @@ computeHidden hidden wsRef input = liftIO $ do
 
 getmWI :: (Hashable k, Eq k) => HS.HashMap k MWeights -> k -> VUM.IOVector Double
 getmWI w k = _mwI $! w HS.! k
+{-# INLINE getmWI #-}

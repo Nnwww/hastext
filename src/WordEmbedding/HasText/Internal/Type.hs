@@ -79,7 +79,7 @@ data HasTextResult = HasTextResult
 
 -- | A parameter throughout learning. Params should be thread-safe since it is shared among threads.
 data Params = Params
-  { _args          :: HasTextArgs                  -- ^ user setting
+  { _args          :: {-# UNPACK #-} HasTextArgs   -- ^ user setting
   , _dict          :: {-# UNPACK #-} Dict          -- ^ dict of input corpus.
   , _noiseDist     :: RMC.CondensedTableV Entry    -- ^ noise distribution table
   , _wordVecRef    :: WordVecRef                   -- ^ word vectors
