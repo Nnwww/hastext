@@ -11,8 +11,6 @@ module WordEmbedding.HasText.Model
   , MWeights(..)
   , initLParams
   , updateModel
-  , genSigmoid
-  , genLog
   , genNoiseDistribution
   ) where
 
@@ -21,7 +19,6 @@ import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Reader
 import           Data.Mutable
-import qualified Data.Array.Unboxed                       as AU
 import qualified Data.HashMap.Strict                      as HS
 import qualified Data.List                                as L
 import qualified Data.Text                                as T
@@ -47,8 +44,8 @@ import           WordEmbedding.HasText.Internal.Type
 
 instance Binary Weights
 
-initLParams :: MonadIO m => Double -> Int -> RM.GenIO -> m LParams
-initLParams initLR dim gR = liftIO $ do
+initLParams :: Double -> Int -> RM.GenIO -> IO LParams
+initLParams initLR dim gR = do
   iouRef <- newRef (0 :: Double)
   h <- VUM.replicate dim 0.0
   g <- VUM.replicate dim 0.0
@@ -61,7 +58,7 @@ negativeSampling :: T.Text -- ^ a updating target word
 negativeSampling input = do
   (Params{_args = (_, HasTextOptions{_negatives = negs}), _noiseDist = nDist},
    LParams{_rand = rand}) <- ask
-  join . liftIO . foldM (sampleNegative nDist rand) samplePositive $! [1 .. negs]
+  join . liftIO . foldM (sampleNegative nDist rand) samplePositive $ [1 .. negs]
     where
       samplePositive = binaryLogistic True input
       sampleNegative noise rand acc _ = do
@@ -80,8 +77,8 @@ updateModel inputs updTarget = do
     updateWordVecs grad ws = V.mapM_ (addGradmWI grad ws) inputs
     addGradmWI grad ws k = getmWI ws k `HMV.addMM` grad
 
-getNegative :: MonadIO m => RMC.CondensedTableV Entry -> RM.GenIO -> T.Text -> m Entry
-getNegative noiseTable rand input = liftIO tryLoop
+getNegative :: RMC.CondensedTableV Entry -> RM.GenIO -> T.Text -> IO Entry
+getNegative noiseTable rand input = tryLoop
   where
     tryLoop = do
       ent <- RMC.genFromTable noiseTable rand
@@ -104,41 +101,3 @@ genHierarchical :: TMap Entry -- ^ vocabulary set for building a hierarchical so
                 -> T.Text           -- ^ a input word
                 -> Double           -- ^ loss parameter
 genHierarchical ents lr input = undefined
-
--- | generate memorized sigmoid function.
-genSigmoid :: Word   -- ^ table size
-           -> Double -- ^ the maximum value of x axis
-           -> (Double -> Double)
-genSigmoid tableSize maxValue x
-  | x < -maxValue = 0.0
-  | maxValue < x  = 1.0
-  | otherwise     = sigmoidTable AU.! mapInputToIndex x
-  where
-    doubledTableSize = fromIntegral tableSize :: Double
-
-    mapInputToIndex :: Double -> Word
-    mapInputToIndex lx = floor ((lx + maxValue) * doubledTableSize / maxValue / 2.0)
-
-    sigmoidTable :: AU.UArray Word Double
-    sigmoidTable = AU.listArray (0, tableSize)
-      [lsigmoid . mapIndexToTableX $ i | i <- [0.0 .. doubledTableSize]]
-
-    mapIndexToTableX :: Double -> Double
-    mapIndexToTableX idx = (idx * 2.0 * maxValue) / doubledTableSize - maxValue
-    lsigmoid lx = 1.0 / (1.0 + exp (negate lx))
-
--- | generate memorized log function.
-genLog :: Word -> (Double -> Double)
-genLog tableSize x
-  | 1.0 < x   = 0.0 -- Because this function is passed probabilities.
-  | otherwise = logTable AU.! mapInputToIndex x
-  where
-    doubledTableSize = fromIntegral tableSize :: Double
-
-    mapInputToIndex :: Double -> Word
-    mapInputToIndex lx = floor (lx * doubledTableSize)
-
-    logTable :: AU.UArray Word Double
-    logTable = AU.listArray (0, tableSize)
-      [Prelude.log ((i + 1e-5) / doubledTableSize) | i <- [0.0 .. doubledTableSize]]
-      -- I add 1e-5 to x due to avoid computing log 0.
