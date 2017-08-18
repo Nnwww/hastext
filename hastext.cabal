@@ -1,4 +1,4 @@
--- This file has been generated from package.yaml by hpack version 0.17.0.
+-- This file has been generated from package.yaml by hpack version 0.17.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -25,8 +25,12 @@ data-files:
     data/text8
     data/text8s/text8_100k
     data/text8s/text8_10k
+    data/text8s/text8_10k.out
+    data/text8s/text8_10k.out.vecc
     data/text8s/text8_10m
     data/text8s/text8_1k
+    data/text8s/text8_1k.out
+    data/text8s/text8_1k.out.vecc
     data/text8s/text8_1m
     data/text8s/text8_25m
     data/text8s/text8_5m
@@ -38,10 +42,9 @@ source-repository head
 library
   hs-source-dirs:
       src
-  ghc-options: -Wall
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
   build-depends:
       base >= 4.7 && < 5
-    , array >= 0.5
     , async >= 2.1
     , binary >= 0.8
     , binary-orphans >= 0.1.6
@@ -79,10 +82,10 @@ executable hastext
   main-is: Main.hs
   hs-source-dirs:
       app
-  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-prof-options: -O2
   build-depends:
       base >= 4.7 && < 5
-    , array >= 0.5
     , async >= 2.1
     , binary >= 0.8
     , binary-orphans >= 0.1.6
@@ -113,10 +116,9 @@ test-suite spec
   main-is: Spec.hs
   hs-source-dirs:
       test
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.7 && < 5
-    , array >= 0.5
     , async >= 2.1
     , binary >= 0.8
     , binary-orphans >= 0.1.6
@@ -154,10 +156,9 @@ benchmark core
   main-is: Bench.hs
   hs-source-dirs:
       bench
-  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >= 4.7 && < 5
-    , array >= 0.5
     , async >= 2.1
     , binary >= 0.8
     , binary-orphans >= 0.1.6

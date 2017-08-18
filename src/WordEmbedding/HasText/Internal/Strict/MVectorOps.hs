@@ -17,6 +17,7 @@ addMM :: VUM.IOVector Double -> VUM.IOVector Double -> IO ()
 addMM ov iv = foriM_ ov $ \i e -> do
   eiv <- VUM.unsafeRead iv i
   pure (eiv + e)
+{-# INLINE addMM #-}
 
 mapi :: (Int -> Double -> Double) -> VUM.IOVector Double -> IO ()
 mapi f ov = go 0
@@ -27,6 +28,7 @@ mapi f ov = go 0
       | len > i  = do
           VUM.unsafeModify ov (f i) i
           go (i + 1)
+{-# INLINE mapi #-}
 
 mapiM_ :: (Int -> Double -> IO Double) -> VUM.IOVector Double -> IO ()
 mapiM_ f ov = go 0
@@ -39,6 +41,7 @@ mapiM_ f ov = go 0
           res <- f i e
           VUM.unsafeWrite ov i res
           go (i + 1)
+{-# INLINE mapiM_ #-}
 
 foriM_ :: VUM.IOVector Double -> (Int -> Double -> IO Double) -> IO ()
 foriM_ ov f = mapiM_ f ov
