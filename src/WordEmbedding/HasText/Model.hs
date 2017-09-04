@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE IncoherentInstances #-}
-
 module WordEmbedding.HasText.Model
   ( Params(..)
   , LParams(..)
@@ -18,38 +15,37 @@ import           Control.Arrow
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Reader
+import           Data.Binary                                      (Binary)
+import           Data.Binary.Orphans                              ()
+import qualified Data.HashMap.Strict                              as HS
+import qualified Data.List                                        as L
 import           Data.Mutable
-import qualified Data.HashMap.Strict                      as HS
-import qualified Data.List                                as L
-import qualified Data.Text                                as T
-import qualified Data.Vector                              as V
-import qualified Data.Vector.Unboxed.Mutable              as VUM
-import           Data.Binary                              (Binary)
-import           Data.Binary.Orphans                      ()
-import qualified System.Random.MWC                        as RM
-import qualified System.Random.MWC.CondensedTable         as RMC
+import qualified Data.Text                                        as T
+import qualified Data.Vector                                      as V
+import qualified Data.Vector.Unboxed.Mutable                      as VUM
+import qualified System.Random.MWC                                as RM
+import qualified System.Random.MWC.CondensedTable                 as RMC
 import           WordEmbedding.HasText.Dict
 import           WordEmbedding.HasText.Internal.Strict.Model
 import qualified WordEmbedding.HasText.Internal.Strict.MVectorOps as HMV
-import           WordEmbedding.HasText.Internal.Type
-                 ( HasTextArgs(..)
-                 , Params(..)
-                 , LParams(..)
-                 , Model
-                 , WordVec
-                 , WordVecRef
-                 , Weights(..)
-                 , MWeights(..)
-                 )
+import           WordEmbedding.HasText.Internal.Type              (HasTextArgs (..),
+                                                                   LParams (..),
+                                                                   MWeights (..),
+                                                                   Model,
+                                                                   Params (..),
+                                                                   Weights (..),
+                                                                   WordVec,
+                                                                   WordVecRef)
 
 instance Binary Weights
 
 initLParams :: Double -> Int -> RM.GenIO -> IO LParams
-initLParams initLR dim gR = do
-  iouRef <- newRef (0 :: Double)
-  h <- VUM.replicate dim 0.0
-  g <- VUM.replicate dim 0.0
-  return LParams {_loss = iouRef, _lr = initLR, _hidden = h, _grad = g, _rand = gR}
+initLParams initLR dim gR = LParams
+  <$> newRef (0 :: Double)
+  <*> pure initLR
+  <*> VUM.replicate dim 0.0
+  <*> VUM.replicate dim 0.0
+  <*> pure gR
 
 -- |
 -- Negative-sampling function, one of the word2vec's efficiency optimization tricks.

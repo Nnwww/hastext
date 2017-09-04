@@ -1,5 +1,5 @@
-{-# LANGUAGE Strict #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE Strict          #-}
 
 module WordEmbedding.HasText.Internal.Strict.HasText
   ( unsafeWindowRange
@@ -14,10 +14,10 @@ module WordEmbedding.HasText.Internal.Strict.HasText
   , cosSim
   ) where
 
+import qualified Data.Text                           as T
 import qualified Data.Vector                         as V
 import qualified Data.Vector.Unboxed                 as VU
 import qualified Data.Vector.Unboxed.Mutable         as VUM
-import qualified Data.Text                           as T
 import qualified System.Random.MWC                   as RM
 import           WordEmbedding.HasText.Internal.Type
 

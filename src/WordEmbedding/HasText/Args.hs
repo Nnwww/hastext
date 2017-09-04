@@ -1,5 +1,5 @@
-{-# LANGUAGE StrictData    #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StrictData    #-}
 
 module WordEmbedding.HasText.Args
   ( HasTextArgs(..)
@@ -9,15 +9,15 @@ module WordEmbedding.HasText.Args
   , validArgs
   ) where
 
+import           Control.Monad.IO.Class
+import           Data.Binary                         (Binary)
 import qualified System.Directory                    as SD
 import qualified System.FilePath                     as SF
-import           Data.Binary                         (Binary)
-import           Control.Monad.IO.Class
 import           WordEmbedding.HasText.Internal.Type
-                 ( HasTextArgs(..)
-                 , HasTextMethod(..)
-                 , HasTextLoss(..)
-                 , HasTextMethod(..)
+                 ( HasTextArgs (..)
+                 , HasTextLoss (..)
+                 , HasTextMethod (..)
+                 , HasTextMethod (..)
                  )
 
 instance Binary HasTextMethod

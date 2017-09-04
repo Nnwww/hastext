@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module WordEmbedding.HasText.Dict
   ( TMap
@@ -13,8 +13,9 @@ module WordEmbedding.HasText.Dict
   , foldWordsFromFile
   ) where
 
-import           System.IO                           as SI
-import qualified System.Random.MWC                   as RM
+import           Control.Exception.Safe
+import           Control.Monad
+import           Control.Monad.IO.Class
 import           Data.Binary                         (Binary)
 import           Data.Binary.Orphans                 ()
 import qualified Data.Char                           as C
@@ -23,16 +24,11 @@ import qualified Data.Conduit.Combinators            as CC
 import qualified Data.HashMap.Strict                 as HS
 import qualified Data.Text                           as T
 import qualified Data.Vector                         as V
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Exception.Safe
-import           WordEmbedding.HasText.Internal.Type
-                 ( HasTextArgs
-                 , HasTextArgs(..)
-                 , TMap
-                 , Dict(..)
-                 , Entry(..)
-                 )
+import           System.IO                           as SI
+import qualified System.Random.MWC                   as RM
+import           WordEmbedding.HasText.Internal.Type (Dict (..), Entry (..),
+                                                      HasTextArgs,
+                                                      HasTextArgs (..), TMap)
 
 instance Binary Entry
 instance Binary Dict

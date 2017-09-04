@@ -1,7 +1,7 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module WordEmbedding.HasText
   ( HasTextResult(..)
@@ -15,34 +15,33 @@ module WordEmbedding.HasText
   , mostSimilarN
   ) where
 
-import           Data.Ord
-import           Data.Semigroup
-import           Data.Mutable
-import qualified Data.Binary                                   as B
-import qualified Data.Binary.Get                               as BG
-import qualified Data.HashMap.Strict                           as HS
-import qualified Data.Text                                     as T
-import qualified Data.Text.IO                                  as TI
-import qualified Data.Vector                                   as V
-import qualified Data.Vector.Unboxed                           as VU
-import qualified Data.Vector.Algorithms.Intro                  as VA
-import qualified System.IO                                     as SI
-import qualified System.Random.MWC                             as RM
-import qualified System.ProgressBar                            as P
 import           Control.Arrow
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Exception.Safe
 import           Control.Monad
-import           Control.Monad.ST
 import           Control.Monad.Reader
+import           Control.Monad.ST
+import qualified Data.Binary                                   as B
+import qualified Data.Binary.Get                               as BG
+import qualified Data.HashMap.Strict                           as HS
+import           Data.Mutable
+import           Data.Ord
+import           Data.Semigroup
+import qualified Data.Text                                     as T
+import qualified Data.Text.IO                                  as TI
+import qualified Data.Vector                                   as V
+import qualified Data.Vector.Algorithms.Intro                  as VA
+import qualified Data.Vector.Unboxed                           as VU
+import qualified System.IO                                     as SI
+import qualified System.ProgressBar                            as P
+import qualified System.Random.MWC                             as RM
 import           TextShow
 import           WordEmbedding.HasText.Args
 import           WordEmbedding.HasText.Dict
-import           WordEmbedding.HasText.Model
 import           WordEmbedding.HasText.Internal.Strict.HasText
-import           WordEmbedding.HasText.Internal.Type
-                 (HasTextResult(..))
+import           WordEmbedding.HasText.Internal.Type           (HasTextResult (..))
+import           WordEmbedding.HasText.Model
 
 instance B.Binary HasTextResult where
   get = do
@@ -56,7 +55,6 @@ instance B.Binary HasTextResult where
       , htWordVec   = w
       }
   put HasTextResult{htArgs = a, htDict = d, htWordVec = w} = B.put a >> B.put d >> B.put w
-
 
 skipgram :: V.Vector T.Text -> Model
 skipgram line = forM_ [0..V.length line - 1] $ \idx -> do

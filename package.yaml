@@ -18,7 +18,7 @@ data-files:
   - data/text8
   - data/text8s/*
 
-ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates
 
 dependencies:
   - base >= 4.7 && < 5

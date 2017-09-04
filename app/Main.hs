@@ -1,16 +1,14 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Main where
 
-import           WordEmbedding.HasText.Args
-import qualified WordEmbedding.HasText       as H
-
-import           Data.Semigroup              ((<>))
+import           Data.Semigroup             ((<>))
 import           Options.Applicative
-import           Options.Applicative.Extra   (execParser)
+import           Options.Applicative.Extra  (execParser)
+import qualified WordEmbedding.HasText      as H
+import           WordEmbedding.HasText.Args
 
 {-
 The following arguments are mandatory:
@@ -83,7 +81,7 @@ makeOptions HasTextArgs {..} =
     epochOpt          = paramOpt "epoch"    'e' "EPOCH"     _epoch          "number of epochs"
     minCountOpt       = paramOpt "minCount" 'c' "MINCOUNT"  _minCount       "minimal number of word occurences"
     negativesOpt      = paramOpt "neg"      'n' "NEGATIVES" _negatives      "number of negatives sampled"
-    methodOpt         = paramOpt "method"   'm' "METHOD"    _method         "learning method {Cbow|SkipGram}"
+    methodOpt         = paramOpt "method"   'm' "METHOD"    _method         "learning method {Cbow|Skipgram}"
     lossOpt           = paramOpt "loss"     'l' "LOSS"      _lossFn         "loss function {Negative|Hierarchical}"
     tSubOpt           = paramOpt "tsub"     's' "TSUB"      _tSub           "sub sampling threshold"
     threadsOpt        = paramOpt "thread"   't' "THREAD"    _threads        "number of threads"

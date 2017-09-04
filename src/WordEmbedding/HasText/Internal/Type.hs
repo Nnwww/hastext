@@ -1,6 +1,6 @@
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE StrictData       #-}
 
 module WordEmbedding.HasText.Internal.Type
   (
@@ -24,18 +24,18 @@ module WordEmbedding.HasText.Internal.Type
   , Entry(..)
   ) where
 
-import           Data.HashMap.Strict                      (HashMap)
-import qualified Data.Vector.Unboxed                      as VU
-import qualified Data.Vector.Unboxed.Mutable              as VUM
-import           Data.Text                                (Text)
+import           Data.HashMap.Strict              (HashMap)
 import           Data.Mutable
-import qualified System.Random.MWC                        as RM
-import qualified System.Random.MWC.CondensedTable         as RMC
-import qualified System.ProgressBar                       as P
+import           Data.Text                        (Text)
+import qualified Data.Vector.Unboxed              as VU
+import qualified Data.Vector.Unboxed.Mutable      as VUM
+import qualified System.ProgressBar               as P
+import qualified System.Random.MWC                as RM
+import qualified System.Random.MWC.CondensedTable as RMC
 
-import           GHC.Generics                             (Generic)
 import           Control.Concurrent
 import           Control.Monad.Reader
+import           GHC.Generics                     (Generic)
 
 -- $APIParams
 --
@@ -68,10 +68,10 @@ data HasTextLoss = Negative | Hierarchical deriving (Show, Read, Generic)
 -- | The result of Word2Vec method.
 -- In contrast to LParams type, it is more preferable that each label of this record is lazy evoluted.
 data HasTextResult = HasTextResult
-  { htArgs          :: HasTextArgs
-  , htDict          :: Dict
-  , htNoiseDist     :: RMC.CondensedTableV Entry -- ^ noise distribution table
-  , htWordVec       :: WordVec                   -- ^ word vectors
+  { htArgs      :: HasTextArgs
+  , htDict      :: Dict
+  , htNoiseDist :: RMC.CondensedTableV Entry -- ^ noise distribution table
+  , htWordVec   :: WordVec                   -- ^ word vectors
   }
 
 -- | A parameter throughout learning. Params should be thread-safe since it is shared among threads.
