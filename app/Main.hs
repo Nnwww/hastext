@@ -1,5 +1,5 @@
-{-# LANGUAGE StrictData    #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 
@@ -42,16 +42,7 @@ The following arguments are optional:
 
 makeOptions :: HasTextOptions -- default parameters
             -> Parser HasTextOptions
-makeOptions HasTextOptions { _initLR         = ra
-                           , _lrUpdateTokens = ut
-                           , _dim            = di
-                           , _windows        = wi
-                           , _epoch          = ep
-                           , _minCount       = mc
-                           , _negatives      = ne
-                           , _lossFn         = lo
-                           , _tSub           = ts
-                           } =
+makeOptions HasTextOptions {..} =
   HasTextOptions
   <$> inputOpt
   <*> outputOpt
@@ -85,17 +76,17 @@ makeOptions HasTextOptions { _initLR         = ra
 
     inputOpt  = mandatoryPathOpt "input"  'i' "INPUTPATH"  "training file path"
     outputOpt = mandatoryPathOpt "output" 'o' "OUTPUTPATH" "output file path"
-    lrOpt             = paramOpt "lr"             'r' "RATE"      ra "learning rate"
-    lrUpdateTokensOpt = paramOpt "lrUpdateTokens" 'u' "NTOKENS"   ut "number of tokens that update the learning rate"
-    dimOpt            = paramOpt "dim"            'd' "DIM"       di "dimention of word vectors"
-    windowsOpt        = paramOpt "windows"        'w' "WIN"       wi "size of the context window"
-    epochOpt          = paramOpt "epoch"          'e' "EPOCH"     ep "number of epochs"
-    minCountOpt       = paramOpt "minCount"       'c' "MINCOUNT"  mc "minimal number of word occurences"
-    negativesOpt      = paramOpt "neg"            'n' "NEGATIVES" ne "number of negatives sampled"
-    lossOpt           = paramOpt "loss"           'l' "LOSS"      lo "loss function {ns, hs}"
-    tSubOpt           = paramOpt "tsub"           't' "TSUB"      ts "sub sampling threshold"
-    threadsOpt        = paramOpt "th"             'm' "THREAD"    12 "number of threads"
-    verboseOpt        = paramOpt "verbose"        'v' "LEVEL"      1 "verbosity level"
+    lrOpt             = paramOpt "lr"             'r' "RATE"      _initLR         "learning rate"
+    lrUpdateTokensOpt = paramOpt "lrUpdateTokens" 'u' "NTOKENS"   _lrUpdateTokens "number of tokens that update the learning rate"
+    dimOpt            = paramOpt "dim"            'd' "DIM"       _dim            "dimention of word vectors"
+    windowsOpt        = paramOpt "windows"        'w' "WIN"       _windows        "size of the context window"
+    epochOpt          = paramOpt "epoch"          'e' "EPOCH"     _epoch          "number of epochs"
+    minCountOpt       = paramOpt "minCount"       'c' "MINCOUNT"  _minCount       "minimal number of word occurences"
+    negativesOpt      = paramOpt "neg"            'n' "NEGATIVES" _negatives      "number of negatives sampled"
+    lossOpt           = paramOpt "loss"           'l' "LOSS"      _lossFn         "loss function {Negative|Hierarchical}"
+    tSubOpt           = paramOpt "tsub"           't' "TSUB"      _tSub           "sub sampling threshold"
+    threadsOpt        = paramOpt "th"             'm' "THREAD"    _threads        "number of threads"
+    verboseOpt        = paramOpt "verbose"        'v' "LEVEL"     _verbose        "verbosity level"
 
 skipGram :: Mod CommandFields HasTextArgs
 skipGram = command "skipgram" opts
