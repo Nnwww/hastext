@@ -2,12 +2,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module WordEmbedding.HasText.Args
-  ( HasTextArgs
+  ( HasTextArgs(..)
   , HasTextMethod(..)
-  , HasTextOptions(..)
   , HasTextLoss(..)
   , learningDefault
-  , validOpts
+  , validArgs
   ) where
 
 import qualified System.Directory                    as SD
@@ -15,20 +14,19 @@ import qualified System.FilePath                     as SF
 import           Data.Binary                         (Binary)
 import           Control.Monad.IO.Class
 import           WordEmbedding.HasText.Internal.Type
-                 ( HasTextArgs
+                 ( HasTextArgs(..)
                  , HasTextMethod(..)
-                 , HasTextOptions(..)
                  , HasTextLoss(..)
                  , HasTextMethod(..)
                  )
 
 instance Binary HasTextMethod
-instance Binary HasTextOptions
+instance Binary HasTextArgs
 instance Binary HasTextLoss
 
 -- | default learning parameter based on FastText.
-learningDefault :: HasTextOptions
-learningDefault = HasTextOptions
+learningDefault :: HasTextArgs
+learningDefault = HasTextArgs
   { _input          = ""
   , _output         = ""
   , _initLR         = 0.1
@@ -38,17 +36,18 @@ learningDefault = HasTextOptions
   , _epoch          = 1
   , _minCount       = 1
   , _negatives      = 5
+  , _method         = Skipgram
   , _lossFn         = Negative
   , _tSub           = 0.0001
   , _threads        = 8
   , _verbose        = 1
   }
 
-validOpts :: MonadIO m => HasTextArgs -> m Bool
-validOpts (_, o) = liftIO $
-  let nonZeroThread = 0 /= _threads o
+validArgs :: MonadIO m => HasTextArgs -> m Bool
+validArgs args = liftIO $
+  let nonZeroThread = 0 /= _threads args
       existPaths = do
-        existIFile <- SD.doesFileExist $ _input o
-        existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ _output o
+        existIFile <- SD.doesFileExist $ _input args
+        existODir  <- SD.doesDirectoryExist . SF.takeDirectory $ _output args
         return $ existIFile && existODir
   in fmap (&& nonZeroThread) existPaths

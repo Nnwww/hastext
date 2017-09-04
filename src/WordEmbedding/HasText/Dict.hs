@@ -28,7 +28,7 @@ import           Control.Monad.IO.Class
 import           Control.Exception.Safe
 import           WordEmbedding.HasText.Internal.Type
                  ( HasTextArgs
-                 , HasTextOptions(..)
+                 , HasTextArgs(..)
                  , TMap
                  , Dict(..)
                  , Entry(..)
@@ -82,7 +82,7 @@ foldWordsFromFile modifier plain readPath =
   .| CC.foldl modifier plain
 
 initFromFile  :: HasTextArgs -> IO Dict
-initFromFile (_, HasTextOptions{..}) = do
+initFromFile HasTextArgs{..} = do
   ents <- foldWordsFromFile addEntries HS.empty _input
   let newEnts = threshold ents _minCount
       newTkns = sizeTokens newEnts

@@ -6,9 +6,8 @@ module WordEmbedding.HasText.Internal.Type
   (
   -- * API arguments
   -- $APIParams
-    HasTextArgs
+    HasTextArgs(..)
   , HasTextMethod(..)
-  , HasTextOptions(..)
   , HasTextLoss(..)
   , HasTextResult(..)
   -- * Internal Parameters
@@ -43,27 +42,25 @@ import           Control.Monad.Reader
 -- Types below are exposed as HasText's API. So These are added the package name as prefix.
 
 -- | Arguments necessary to learn
-type HasTextArgs = (HasTextMethod, HasTextOptions)
+data HasTextArgs = HasTextArgs
+  { _input          :: FilePath      -- ^ training file path
+  , _output         :: FilePath      -- ^ output file path
+  , _initLR         :: Double        -- ^ learning rate
+  , _lrUpdateTokens :: Word          -- ^ the number of tokens that update the learning rate
+  , _dim            :: Word          -- ^ size of word vectors
+  , _windows        :: Word          -- ^ size of the context window
+  , _epoch          :: Word          -- ^ number of epochs
+  , _minCount       :: Word          -- ^ minimal number of word occurences
+  , _negatives      :: Word          -- ^ number of negatives sampled
+  , _method         :: HasTextMethod -- ^ learning method {Cbow|SkipGram}
+  , _lossFn         :: HasTextLoss   -- ^ loss functions {Negative|Hierarchical}
+  , _tSub           :: Double        -- ^ sub-sampling threshold
+  , _threads        :: Word          -- ^ number of threads
+  , _verbose        :: Word          -- ^ verbosity level
+  } deriving (Show, Generic)
 
 -- | Learning algorithms
-data HasTextMethod = Cbow | Skipgram deriving (Show, Generic)
-
--- | Global options to learn
-data HasTextOptions = HasTextOptions
-  { _input          :: FilePath    -- ^ training file path
-  , _output         :: FilePath    -- ^ output file path
-  , _initLR         :: Double      -- ^ learning rate
-  , _lrUpdateTokens :: Word        -- ^ the number of tokens that update the learning rate
-  , _dim            :: Word        -- ^ size of word vectors
-  , _windows        :: Word        -- ^ size of the context window
-  , _epoch          :: Word        -- ^ number of epochs
-  , _minCount       :: Word        -- ^ minimal number of word occurences
-  , _negatives      :: Word        -- ^ number of negatives sampled
-  , _lossFn         :: HasTextLoss -- ^ loss function {ns, hs}
-  , _tSub           :: Double      -- ^ sub-sampling threshold
-  , _threads        :: Word        -- ^ number of threads
-  , _verbose        :: Word        -- ^ verbosity level
-  } deriving (Show, Generic)
+data HasTextMethod = Cbow | Skipgram deriving (Show, Read, Generic)
 
 -- | Loss functions
 data HasTextLoss = Negative | Hierarchical deriving (Show, Read, Generic)

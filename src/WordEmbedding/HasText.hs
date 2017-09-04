@@ -73,20 +73,20 @@ cbow line = forM_ [0..V.length line - 1] $ \idx -> do
 
 -- TODO: compare parallelization using MVar with one using ParIO etc.
 trainThread :: Params -> Integer -> IO Params
-trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRef, _progressRef = progRef} threadNo = do
+trainThread params@Params{_args = args, _dict = dict, _tokenCountRef = tcRef, _progressRef = progRef} threadNo = do
   genRand <- RM.createSystemRandom
-  bracket (SI.openFile (_input opt) SI.ReadMode) SI.hClose (trainMain genRand)
+  bracket (SI.openFile (_input args) SI.ReadMode) SI.hClose (trainMain genRand)
   return params
   where
-    initLP gr = initLParams (_initLR opt) (fromIntegral $ _dim opt) gr
-    allTokens = _epoch opt * _ntokens dict
-    method    = chooseMethod lm
+    initLP gr = initLParams (_initLR args) (fromIntegral $ _dim args) gr
+    allTokens = _epoch args * _ntokens dict
+    method    = chooseMethod . _method $ args
     chooseMethod Cbow     = cbow
     chooseMethod Skipgram = skipgram
 
     bufferTokenCount :: Word -> IO Word
     bufferTokenCount localTokenCount
-      | localTokenCount <= _lrUpdateTokens opt = return localTokenCount
+      | localTokenCount <= _lrUpdateTokens args = return localTokenCount
       | otherwise = do
          atomicModifyRef' tcRef $ (,()) . (+ localTokenCount)
          P.incProgress progRef $ fromIntegral localTokenCount
@@ -95,7 +95,7 @@ trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRe
     trainMain :: RM.GenIO -> SI.Handle -> IO ()
     trainMain rand h = do
       size <- SI.hFileSize h
-      SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ _threads opt)
+      SI.hSeek h SI.AbsoluteSeek $ size * threadNo `quot` (fromIntegral $ _threads args)
       let trainUntilCountUpTokens !localTC oldLParams@LParams{_lr = oldLR} = do
             tokenCount <- atomicModifyRef' tcRef (\tc -> (tc,fromIntegral tc))
             if allTokens < tokenCount then return ()
@@ -111,13 +111,13 @@ trainThread params@Params{_args = (lm, opt), _dict = dict, _tokenCountRef = tcRe
 
 
 train :: HasTextArgs -> IO HasTextResult
-train args@(_, opt) = do
+train args = do
   check
   dict  <- initFromFile args
   rand  <- RM.createSystemRandom
   wvRef <- initWVRef rand dict
   tcRef <- newRef 0
-  let allTokens = fromIntegral $ (_epoch opt) * (_ntokens dict)
+  let allTokens = fromIntegral $ (_epoch args) * (_ntokens dict)
   (progRef, progThId) <- P.startProgress (P.msg "Training") P.percentage 40 allTokens
   let params = Params
         { _args          = args
@@ -127,7 +127,7 @@ train args@(_, opt) = do
         , _tokenCountRef = tcRef
         , _progressRef   = progRef
         }
-  resultParams : _ <- mapConcurrently (trainThread params) [0.. fromIntegral $ _threads opt - 1]
+  resultParams : _ <- mapConcurrently (trainThread params) [0.. fromIntegral $ _threads args - 1]
   immWordVec <- unsafeFreezeWordVecRef $ _wordVecRef resultParams
   killThread progThId
   return HasTextResult
@@ -138,11 +138,11 @@ train args@(_, opt) = do
     }
   where
     unsafeFreezeWordVecRef wvRef = fmap HS.fromList . mapM (\(k,v) -> (k,) <$> unsafeFreezeMW v) . HS.toList =<< readMVar wvRef
-    check = validOpts args >>= (flip unless) (throwString "Error: Invalid Arguments.")
+    check = validArgs args >>= (flip unless) (throwString "Error: Invalid Arguments.")
     initWVRef :: RM.GenIO -> Dict -> IO WordVecRef
     initWVRef rnd d = (newMVar . HS.fromList) =<< (sequence . map initWVEntries . HS.keys $ _entries d)
       where
-        initWVEntries k = (k,) <$> initMW rnd (fromIntegral $ _dim opt)
+        initWVEntries k = (k,) <$> initMW rnd (fromIntegral $ _dim args)
 
 data ErrMostSim = EmptyInput
                 | AbsenceOfWords {absPosW :: [T.Text], negPosW :: [T.Text]}
@@ -191,7 +191,7 @@ mostSimilarN w topn positives negatives = mostSimilar w 0 topn positives negativ
 saveModel :: (MonadIO m, MonadThrow m) => HasTextResult -> m ()
 saveModel w@HasTextResult{htArgs = args} = liftIO $ B.encodeFile outFilePath w
   where
-    outFilePath = _output . snd $ args
+    outFilePath = _output args
 
 saveVectorCompat :: (MonadIO m, MonadThrow m) => HasTextResult -> m ()
 saveVectorCompat HasTextResult{htArgs = args, htDict = dict, htWordVec = wv} =
@@ -199,8 +199,8 @@ saveVectorCompat HasTextResult{htArgs = args, htDict = dict, htWordVec = wv} =
     TI.hPutStrLn h $ toText sizeAndDim
     mapM_ (putVec h) $ HS.toList wv
   where
-    outFilePath = _output . snd $ args
-    sizeAndDim = (showb . HS.size $ _entries dict) <> showbSpace <> (showb . _dim $ snd args)
+    outFilePath = _output args
+    sizeAndDim = (showb . HS.size $ _entries dict) <> showbSpace <> (showb $ _dim args)
     putVec h (k, Weights{_wI = i}) =
       TI.hPutStrLn h . toText $ (fromText k) <> showbSpace <> (unwordsB . map showb $ VU.toList i)
 

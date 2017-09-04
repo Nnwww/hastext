@@ -32,7 +32,7 @@ import           WordEmbedding.HasText.Dict
 import           WordEmbedding.HasText.Internal.Strict.Model
 import qualified WordEmbedding.HasText.Internal.Strict.MVectorOps as HMV
 import           WordEmbedding.HasText.Internal.Type
-                 ( HasTextOptions(..)
+                 ( HasTextArgs(..)
                  , Params(..)
                  , LParams(..)
                  , Model
@@ -56,7 +56,7 @@ initLParams initLR dim gR = do
 negativeSampling :: T.Text -- ^ a updating target word
                  -> Model
 negativeSampling input = do
-  (Params{_args = (_, HasTextOptions{_negatives = negs}), _noiseDist = nDist},
+  (Params{_args = HasTextArgs{_negatives = negs}, _noiseDist = nDist},
    LParams{_rand = rand}) <- ask
   join . liftIO . foldM (sampleNegative nDist rand) samplePositive $ [1 .. negs]
     where
