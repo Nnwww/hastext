@@ -28,7 +28,6 @@ mapi f ov = go 0
       | len > i  = do
           VUM.unsafeModify ov (f i) i
           go (i + 1)
-      | otherwise = error ""
 {-# INLINE mapi #-}
 
 mapiM_ :: (Int -> Double -> IO Double) -> VUM.IOVector Double -> IO ()
