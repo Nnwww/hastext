@@ -11,15 +11,18 @@ module WordEmbedding.HasText.Model
   , genNoiseDistribution
   ) where
 
+import           Control.Applicative
 import           Control.Arrow
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Reader
 import           Data.Binary                                      (Binary)
 import           Data.Binary.Orphans                              ()
+import           Data.Foldable
 import qualified Data.HashMap.Strict                              as HS
 import qualified Data.List                                        as L
 import           Data.Mutable
+import           Data.Semigroup
 import qualified Data.Text                                        as T
 import qualified Data.Vector                                      as V
 import qualified Data.Vector.Unboxed.Mutable                      as VUM
@@ -52,14 +55,12 @@ initLParams initLR dim gR = LParams
 negativeSampling :: T.Text -- ^ a updating target word
                  -> Model
 negativeSampling input = do
-  (Params{_args = HasTextArgs{_negatives = negs}, _noiseDist = nDist},
-   LParams{_rand = rand}) <- ask
-  join . liftIO . foldM (sampleNegative nDist rand) samplePositive $ [1 .. negs]
-    where
-      samplePositive = binaryLogistic True input
-      sampleNegative noise rand acc _ = do
-        Entry{_eWord = negWord} <- getNegative noise rand input
-        return (acc >> binaryLogistic False negWord)
+  (Params{_args = HasTextArgs{_negatives = negs}, _noiseDist = nDist}, LParams{_rand = rand}) <- ask
+  negModels <- liftIO . replicateM (fromIntegral negs - 1) $ sampleNegative nDist rand
+  asum negModels *> samplePositive
+  where
+    samplePositive = binaryLogistic True input
+    sampleNegative noise rand = binaryLogistic False <$> _eWord <$> getNegative noise rand input
 
 -- |
 -- The function that update a model. This function is a entry point of LParams module.
@@ -68,7 +69,7 @@ updateModel inputs updTarget = do
   (Params{_wordVecRef = wvRef}, LParams{_hidden = h, _grad = g}) <- ask
   computeHidden h wvRef inputs
   negativeSampling updTarget
-  liftIO . modifyMVar_ wvRef $ \ws -> updateWordVecs g ws >> return ws
+  liftIO . modifyMVar_ wvRef $ \ws -> updateWordVecs g ws *> pure ws
   where
     updateWordVecs grad ws = V.mapM_ (addGradmWI grad ws) inputs
     addGradmWI grad ws k = getmWI ws k `HMV.addMM` grad
@@ -78,7 +79,7 @@ getNegative noiseTable rand input = tryLoop
   where
     tryLoop = do
       ent <- RMC.genFromTable noiseTable rand
-      if _eWord ent /= input then return ent else tryLoop
+      if _eWord ent /= input then pure ent else tryLoop
 
 genNoiseDistribution :: Double                    -- ^ nth power of unigram distribution
                      -> TMap Entry                -- ^ vocabulary set for constructing a noise distribution table
