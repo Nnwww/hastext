@@ -60,14 +60,14 @@ negativeSampling input = do
   asum negModels *> samplePositive
   where
     samplePositive = binaryLogistic True input
-    sampleNegative noise rand = binaryLogistic False <$> _eWord <$> getNegative noise rand input
+    sampleNegative noise rand = binaryLogistic False . _eWord <$> getNegative noise rand input
 
 -- |
 -- The function that update a model. This function is a entry point of LParams module.
 updateModel :: V.Vector T.Text -> T.Text -> Model
 updateModel inputs updTarget = do
   (Params{_wordVecRef = wvRef}, LParams{_hidden = h, _grad = g}) <- ask
-  computeHidden h wvRef inputs
+  liftIO $ computeHidden h wvRef inputs
   negativeSampling updTarget
   liftIO . modifyMVar_ wvRef $ \ws -> updateWordVecs g ws *> pure ws
   where
