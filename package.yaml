@@ -18,7 +18,12 @@ data-files:
   - data/text8
   - data/text8s/*
 
-ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates
+ghc-options: -Wall -Wincomplete-patterns -Wincomplete-record-updates -fllvm
+_exe-ghc-options: &exe-ghc-options
+  - -O2
+  - -threaded
+  - -rtsopts
+  - -with-rtsopts=-N
 
 dependencies:
   - base >= 4.7 && < 5
@@ -61,27 +66,22 @@ executables:
   hastext:
     source-dirs: app
     main: Main.hs
-    ghc-options:
+    ghc-options: *exe-ghc-options
+    ghc-prof-options:
       - -O2
       - -threaded
       - -rtsopts
-      - -with-rtsopts=-N
-    ghc-prof-options:
-      - -O2
-#      - -fno-prof-count-entries
-#      - -threaded
-#      - -rtsopts
-#      - -with-rtsopts="-N -p -h"
+      - -with-rtsopts="-N -p"
     dependencies:
       - optparse-applicative >= 0.13.2
       - hastext
 
 tests:
   spec:
-    source-dirs:
-      - test
+    source-dirs: test
     main: Spec.hs
     ghc-options:
+      - -fllvm
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
@@ -100,11 +100,7 @@ benchmarks:
   core:
     source-dirs: bench
     main: Bench.hs
-    ghc-options:
-      - -O2
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
+    ghc-options: *exe-ghc-options
     dependencies:
       - hastext
       - criterion >= 1.1.4
