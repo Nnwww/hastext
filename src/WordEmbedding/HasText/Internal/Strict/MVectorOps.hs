@@ -8,9 +8,11 @@ import qualified Data.Vector.Unboxed.Mutable as VUM
 
 scale :: Double -> VUM.IOVector Double -> IO ()
 scale alpha v = mapi (\_ e -> alpha * e) v
+{-# INLINE scale #-}
 
 add :: VUM.IOVector Double -> VU.Vector Double -> IO ()
 add ov iv = mapi (\i e -> e + VU.unsafeIndex iv i) ov
+{-# INLINE add #-}
 
 addMM :: VUM.IOVector Double -> VUM.IOVector Double -> IO ()
 addMM ov iv = foriM_ ov $ \i e -> do
@@ -59,8 +61,10 @@ foldiM ov a f = go 0 a
           e <- VUM.unsafeRead ov i
           res <- f i acc e
           go (i + 1) res
+{-# INLINE foldiM #-}
 
 sumDotMM :: VUM.IOVector Double -> VUM.IOVector Double -> IO Double
 sumDotMM av bv = foldiM av 0 $ \i acc e -> do
   ebv <- VUM.unsafeRead bv i
   return (acc + e * ebv)
+{-# INLINE sumDotMM #-}

@@ -36,9 +36,9 @@ binaryLogistic label input = do
     let mwo = _mwO (ws HS.! input)
     score <- sigmoid <$> HMV.sumDotMM mwo _hidden
     let alpha = _lr * (boolToNum label - score)
-    HMV.foriM_ _grad (\i e -> do
-                       emwo <- VUM.unsafeRead mwo i
-                       return $ e + alpha * emwo)
+    HMV.foriM_ _grad $ \i e -> do
+      emwo <- VUM.unsafeRead mwo i
+      pure $! e + alpha * emwo
     HMV.mapi (const (alpha *)) _hidden
     HMV.addMM mwo _hidden
     putMVar _wordVecRef ws
@@ -46,15 +46,17 @@ binaryLogistic label input = do
     M.modifyRef' _loss (+ minusLog)
   where
     boolToNum = fromIntegral . fromEnum
+{-# INLINE binaryLogistic #-}
 
-computeHidden :: MonadIO m => VUM.IOVector Double -> WordVecRef -> V.Vector T.Text -> m ()
-computeHidden hidden wsRef input = liftIO $ do
+computeHidden :: VUM.IOVector Double -> WordVecRef -> V.Vector T.Text -> IO ()
+computeHidden hidden wsRef input = do
   ws <- readMVar wsRef
   mapM_ (HMV.addMM hidden) $ V.map (getmWI ws) input
   HMV.scale invLen hidden
   where
     inverse d = 1.0 / fromIntegral d
     invLen = inverse . V.length $! input
+{-# INLINE computeHidden #-}
 
 getmWI :: (Hashable k, Eq k) => HS.HashMap k MWeights -> k -> VUM.IOVector Double
 getmWI w k = _mwI $! w HS.! k
