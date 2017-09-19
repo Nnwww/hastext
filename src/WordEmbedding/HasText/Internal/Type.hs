@@ -76,17 +76,17 @@ data HasTextResult = HasTextResult
 
 -- | A parameter throughout learning. Params should be thread-safe since it is shared among threads.
 data Params = Params
-  { _args          :: {-# UNPACK #-} HasTextArgs -- ^ user setting
-  , _dict          :: {-# UNPACK #-} Dict        -- ^ dict of input corpus.
-  , _noiseDist     :: RMC.CondensedTableV Entry  -- ^ noise distribution table
-  , _wordVecRef    :: {-# UNPACK #-} WordVecRef  -- ^ word vectors
-  , _tokenCountRef :: {-# UNPACK #-} IORef Word  -- ^ the number of tokens consumed
+  { _args          :: {-# UNPACK #-} HasTextArgs   -- ^ user setting
+  , _dict          :: {-# UNPACK #-} Dict          -- ^ dict of input corpus.
+  , _noiseDist     :: RMC.CondensedTableV Entry    -- ^ noise distribution table
+  , _wordVecRef    :: {-# UNPACK #-} WordVecRef    -- ^ word vectors
+  , _tokenCountRef :: {-# UNPACK #-} (IORef Word)  -- ^ the number of tokens consumed
   , _progressRef   :: P.ProgressRef
   }
 
 -- | A local parameter per thread.
 data LParams = LParams
-  { _loss   :: {-# UNPACK #-} IOURef Double
+  { _loss   :: {-# UNPACK #-} (IOURef Double)
   , _lr     :: Double
   , _hidden :: {-# UNPACK #-} (VUM.IOVector Double)
   , _grad   :: {-# UNPACK #-} (VUM.IOVector Double)
