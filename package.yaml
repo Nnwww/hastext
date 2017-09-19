@@ -80,11 +80,7 @@ tests:
   spec:
     source-dirs: test
     main: Spec.hs
-    ghc-options:
-      - -fllvm
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
+    ghc-options: *exe-ghc-options
     other-modules:
       - Paths_hastext
       - TestDict
